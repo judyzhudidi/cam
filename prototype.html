@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>FishEye Cam</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root { --safe-b: env(safe-area-inset-bottom, 20px); }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, 'SF Pro Display', 'PingFang SC', sans-serif; color: #fff; touch-action: none; }
+
+  /* ===== Canvas empty state ===== */
+  .canvas-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: rgba(255,255,255,.3); cursor: pointer; transition: opacity .3s; z-index: 1; }
+  .canvas-empty span { font-size: 15px; font-weight: 500; }
+  .canvas-empty.hidden { opacity: 0; pointer-events: none; }
+
+  /* ===== Editor (always visible) ===== */
+  #editor { position: absolute; inset: 0; display: flex; flex-direction: column; z-index: 5; }
+
+  /* Top bar */
+  .top-bar { display: flex; align-items: center; height: 52px; padding: 0 8px; background: rgba(20,20,20,.95); flex-shrink: 0; padding-top: env(safe-area-inset-top, 0); }
+  .top-bar > button { width: 44px; height: 44px; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .top-bar .title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; }
+  .top-actions { display: flex; align-items: center; gap: 4px; }
+  .top-action-btn { width: 36px; height: 36px; background: none; border: none; color: rgba(255,255,255,.7); cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px; transition: background .15s, color .15s; }
+  .top-action-btn:active { background: rgba(255,255,255,.1); color: #fff; }
+  .top-save-btn { height: 32px; padding: 0 16px; border-radius: 16px; background: #fff; color: #000; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: transform .15s, opacity .15s; margin-left: 4px; }
+  .top-save-btn:active { transform: scale(.95); opacity: .8; }
+
+  /* Canvas area */
+  .canvas-wrap { flex: 1; position: relative; background: #000; overflow: hidden; }
+  #glCanvas { width: 100%; height: 100%; display: block; }
+
+  /* Crosshair overlay */
+  .crosshair { position: absolute; pointer-events: none; z-index: 2; transition: transform .05s linear; }
+  .crosshair-ring { width: 32px; height: 32px; border: 2px solid rgba(255,255,255,.5); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); transition: border-color .15s, transform .15s; }
+  .crosshair-dot { width: 6px; height: 6px; background: rgba(255,255,255,.7); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+  .crosshair-line { position: absolute; background: rgba(255,255,255,.3); }
+  .crosshair-line.v { width: 1px; height: 18px; left: 50%; transform: translateX(-50%); }
+  .crosshair-line.v.top { bottom: calc(50% + 18px); }
+  .crosshair-line.v.bot { top: calc(50% + 18px); }
+  .crosshair-line.h { height: 1px; width: 18px; top: 50%; transform: translateY(-50%); }
+  .crosshair-line.h.lft { right: calc(50% + 18px); }
+  .crosshair-line.h.rgt { left: calc(50% + 18px); }
+  .crosshair.active .crosshair-ring { border-color: rgba(255,255,255,.85); transform: translate(-50%,-50%) scale(1.25); }
+
+  /* Radius ring */
+  .radius-ring { position: absolute; border: 1.5px dashed rgba(255,255,255,.3); border-radius: 50%; pointer-events: none; z-index: 2; transform: translate(-50%,-50%); transition: border-color .15s, width .08s, height .08s; }
+  .radius-ring.active { border-color: rgba(255,255,255,.6); }
+  .radius-ring.hidden { display: none; }
+
+  /* Bottom controls */
+  .bottom-panel { background: rgba(20,20,20,.95); padding: 12px 20px 0; padding-bottom: calc(10px + var(--safe-b)); flex-shrink: 0; display: flex; flex-direction: column; }
+  .bottom-controls { min-height: 104px; display: flex; flex-direction: column; justify-content: center; overflow: visible; }
+
+  .slider-group { margin-bottom: 16px; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,.5); margin-bottom: 8px; }
+  .slider-label span:last-child { font-variant-numeric: tabular-nums; }
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; background: rgba(255,255,255,.15); border-radius: 2px; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: #fff; border-radius: 50%; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+
+  /* Mode wheel selector */
+  .mode-wheel-wrap { position: relative; height: 44px; margin-top: 4px; margin-bottom: 6px; overflow: hidden; perspective: 340px; }
+  .mode-wheel { display: flex; gap: 0; height: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; will-change: transform; }
+  .mode-item { flex-shrink: 0; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 14px; font-weight: 500; color: rgba(255,255,255,.3); white-space: nowrap; cursor: pointer; position: relative; transition: color .15s; transform-style: preserve-3d; }
+  .mode-item.active { color: #fff; font-weight: 600; }
+  /* Center indicator — subtle underline dot */
+  .mode-wheel-indicator { position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.5); pointer-events: none; z-index: 2; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 140px; left: 50%; transform: translateX(-50%) translateY(20px); background: rgba(40,40,40,.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 10px 20px; border-radius: 100px; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; z-index: 100; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Hidden file input */
+  #fileInput { display: none; }
+
+  /* Frame color toggle */
+  .frame-toggle { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .frame-label { font-size: 12px; color: rgba(255,255,255,.5); flex-shrink: 0; }
+  .frame-btns { display: flex; gap: 8px; flex: 1; }
+  .frame-btn { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 8px; border: 1.5px solid rgba(255,255,255,.1); background: transparent; color: rgba(255,255,255,.45); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s; }
+  .frame-btn.active { border-color: rgba(255,255,255,.6); color: #fff; background: rgba(255,255,255,.1); }
+  .frame-preview { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); }
+  .frame-preview.dark { background: radial-gradient(circle, #333 40%, #0a0a0b 70%); }
+  .frame-preview.light { background: radial-gradient(circle, #ccc 40%, #e0e0e2 70%); }
+</style>
+</head>
+<body>
+
+<!-- Editor (always visible, single page) -->
+<div id="editor" class="visible">
+  <div class="top-bar">
+    <button onclick="pickImage()" aria-label="相册">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+    </button>
+    <div class="title" id="modeTitle">放大镜</div>
+    <div class="top-actions">
+      <button class="top-action-btn" onclick="pickImage('camera')" aria-label="拍照">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+      </button>
+      <button class="top-action-btn" onclick="removeBackgroundAI()" aria-label="去背景">
+        <span style="font-size:12px;font-weight:700;line-height:1;">BG</span>
+      </button>
+      <button class="top-action-btn" onclick="resetParams()" aria-label="重置">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
+      <button class="top-action-btn" onclick="shareImage()" aria-label="分享">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+      </button>
+      <button class="top-save-btn" onclick="saveImage()">保存</button>
+    </div>
+  </div>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="glCanvas"></canvas>
+    <!-- Empty state placeholder -->
+    <div class="canvas-empty" id="canvasEmpty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      <span>点击选择照片</span>
+    </div>
+    <div class="crosshair" id="crosshair">
+      <div class="crosshair-ring"></div>
+      <div class="crosshair-dot"></div>
+      <div class="crosshair-line v top"></div>
+      <div class="crosshair-line v bot"></div>
+      <div class="crosshair-line h lft"></div>
+      <div class="crosshair-line h rgt"></div>
+    </div>
+    <div class="radius-ring" id="radiusRing"></div>
+  </div>
+
+  <div class="bottom-panel">
+    <div class="bottom-controls" id="bottomControls">
+      <div class="slider-group">
+        <div class="slider-label"><span>强度</span><span id="strengthVal">80%</span></div>
+        <input type="range" id="strengthSlider" min="0" max="150" value="80" oninput="onStrengthChange(this.value)">
+      </div>
+      <div class="slider-group" id="radiusGroup">
+        <div class="slider-label"><span>半径</span><span id="radiusVal">42%</span></div>
+        <input type="range" id="radiusSlider" min="5" max="60" value="42" oninput="onRadiusChange(this.value)">
+      </div>
+
+      <div class="frame-toggle" id="frameToggle">
+        <div class="frame-btns">
+          <button class="frame-btn active" data-fc="0" onclick="switchFrame(0)">
+            <span class="frame-preview dark"></span>
+          </button>
+          <button class="frame-btn" data-fc="1" onclick="switchFrame(1)">
+            <span class="frame-preview light"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="frame-toggle" id="folderColorToggle" style="display:none;">
+        <div class="frame-label" style="font-size:12px;color:rgba(255,255,255,.5);margin-right:8px;">颜色</div>
+        <div class="frame-btns" id="folderColorBtns" style="gap:6px;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+
+    <div class="mode-wheel-wrap" id="modeWheelWrap">
+      <div class="mode-wheel-indicator"></div>
+      <div class="mode-wheel" id="modeWheel">
+        <div class="mode-item" data-mode="0">鱼眼</div>
+        <div class="mode-item active" data-mode="1">放大镜</div>
+        <div class="mode-item" data-mode="4">撕拉片</div>
+        <div class="mode-item" data-mode="5">文件夹</div>
+        <div class="mode-item" data-mode="2">马赛克</div>
+        <div class="mode-item" data-mode="3">贴纸</div>
+        <div class="mode-item" data-mode="6">Die-cut</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept="image/*">
+
+<script>
+// ============================================================
+//  State
+// ============================================================
+const S = {
+  mode: 1,           // 0=barrel, 1=bulge
+  strength: 0.8,
+  radius: 0.42,
+  cx: 0.5, cy: 0.5,  // normalized center
+  dragging: false,
+  pinching: false,
+  pinchStartRadius: 0,
+  pinchStartDist: 0,
+  imgLoaded: false,
+  frameColor: 0,     // 0=black frame, 1=white frame
+  // Peel-off film state (mode 4)
+  peelX: 1.0, peelY: 1.0,  // peel corner position (normalized UV, reset to cardMax on mode enter)
+  peelDragging: false,
+  peelSpringActive: false,
+  peelOpen: false,          // true = spring toward fully open, false = spring toward closed
+  peelLocked: false,        // after one successful peel, ignore further peel gestures until mode reset
+  peelVx: 0, peelVy: 0,
+  peelTime: 0,
+  peelCornerX: 1.0, peelCornerY: 1.0,  // which corner to peel from (card-local: 0 or 1 per axis)
+  // Folder icon state (mode 5)
+  folderColorIdx: 0,
+  photoOffX: 0, photoOffY: 0,  // photo drag offset
+  folderDragging: false,
+  folderDragStartX: 0, folderDragStartY: 0,
+  folderOffStartX: 0, folderOffStartY: 0,
+};
+
+let gl, program, posBuffer, texture, folderTexture, folderFrontTexture, peelTexture;
+let uCenter, uRadius, uStrength, uMode, uResolution, uTexSize, uFrameColor, uPeelPos, uPeelCorner, uPeelClosed, uTime;
+let uFolderColor, uFolderTabColor, uPhotoOffset, uFolderTex, uFolderFrontTex, uFolderTexSize, uPeelTex, uPeelTexSize;
+let canvasWrap, canvas, crosshair, radiusRing;
+let imgWidth = 1, imgHeight = 1;
+let sourceImageCanvas = null;
+let folderTexWidth = 1, folderTexHeight = 1;
+let peelTexWidth = 2673, peelTexHeight = 5298;
+let folderTexReady = false;
+let folderFrontTexReady = false;
+let rafId = null;
+
+const PEEL_TEMPLATE = {
+  width: 2673,
+  height: 5298,
+  scale: 0.86,
+  photoMinX: 0.074,
+  photoMinY: 0.064,
+  photoMaxX: 0.926,
+  photoMaxY: 0.712,
+};
+
+const FOLDER_COLORS = [
+  { name: 'Snow',     body: [0.95, 0.94, 0.93], tab: [0.98, 0.97, 0.96] },
+  { name: 'Blue',     body: [0.30, 0.56, 0.94], tab: [0.40, 0.64, 0.97] },
+  { name: 'Purple',   body: [0.58, 0.36, 0.85], tab: [0.66, 0.45, 0.90] },
+  { name: 'Pink',     body: [0.92, 0.42, 0.55], tab: [0.95, 0.52, 0.62] },
+  { name: 'Orange',   body: [0.95, 0.60, 0.25], tab: [0.97, 0.68, 0.35] },
+  { name: 'Yellow',   body: [0.95, 0.85, 0.30], tab: [0.97, 0.90, 0.42] },
+  { name: 'Green',    body: [0.30, 0.78, 0.48], tab: [0.40, 0.84, 0.55] },
+  { name: 'Graphite', body: [0.42, 0.42, 0.44], tab: [0.52, 0.52, 0.54] },
+];
+
+function getPeelPhotoRect() {
+  const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
+  const screenAR = w / h;
+  const peelAR = PEEL_TEMPLATE.width / PEEL_TEMPLATE.height;
+  const halfH = PEEL_TEMPLATE.scale * 0.5;
+  const halfW = halfH * peelAR / screenAR;
+  const minX = 0.5 - halfW;
+  const minY = 0.5 - halfH;
+  const sizeX = halfW * 2.0;
+  const sizeY = halfH * 2.0;
+  return {
+    minX: minX + sizeX * PEEL_TEMPLATE.photoMinX,
+    minY: minY + sizeY * PEEL_TEMPLATE.photoMinY,
+    maxX: minX + sizeX * PEEL_TEMPLATE.photoMaxX,
+    maxY: minY + sizeY * PEEL_TEMPLATE.photoMaxY,
+  };
+}
+
+// Returns the bottom-right corner of the peel photo window in UV [0,1] space
+function getCardMax() {
+  const r = getPeelPhotoRect();
+  return { x: r.maxX, y: r.maxY };
+}
+
+// Returns the top-left corner of the peel photo window in UV [0,1] space
+function getCardMin() {
+  const r = getPeelPhotoRect();
+  return { x: r.minX, y: r.minY };
+}
+
+// Returns screen UV position for a card corner given local coords (0 or 1 per axis)
+function getCardCornerUV(localX, localY) {
+  const cmin = getCardMin();
+  const cmax = getCardMax();
+  return {
+    x: cmin.x + (cmax.x - cmin.x) * localX,
+    y: cmin.y + (cmax.y - cmin.y) * localY
+  };
+}
+
+// Find the closest card corner to a given screen UV point. Returns { localX, localY, screenX, screenY, dist }
+function findClosestCorner(px, py) {
+  const corners = [
+    { lx: 0, ly: 0 }, // top-left
+    { lx: 1, ly: 0 }, // top-right
+    { lx: 0, ly: 1 }, // bottom-left
+    { lx: 1, ly: 1 }, // bottom-right
+  ];
+  let best = null;
+  for (const c of corners) {
+    const uv = getCardCornerUV(c.lx, c.ly);
+    const dx = px - uv.x, dy = py - uv.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (!best || d < best.dist) {
+      best = { localX: c.lx, localY: c.ly, screenX: uv.x, screenY: uv.y, dist: d };
+    }
+  }
+  return best;
+}
+
+function getFolderRectPx() {
+  const rect = canvasWrap.getBoundingClientRect();
+  const folderAR = 1004 / 854;
+  const folderScale = 0.50;
+  const pxH = rect.height * folderScale;
+  const pxW = pxH * folderAR;
+  return {
+    x: rect.left + (rect.width - pxW) * 0.5,
+    y: rect.top + (rect.height - pxH) * 0.5,
+    w: pxW,
+    h: pxH,
+  };
+}
+
+function isPointInFolder(clientX, clientY) {
+  const r = getFolderRectPx();
+  return clientX >= r.x && clientX <= r.x + r.w && clientY >= r.y && clientY <= r.y + r.h;
+}
+
+function resetPeelCover() {
+  S.peelCornerX = 1.0;
+  S.peelCornerY = 1.0;
+  const cornerUV = getCardCornerUV(S.peelCornerX, S.peelCornerY);
+  S.peelX = cornerUV.x;
+  S.peelY = cornerUV.y;
+  S.peelVx = 0;
+  S.peelVy = 0;
+  S.peelSpringActive = false;
+  S.peelDragging = false;
+  S.peelOpen = false;
+  S.peelLocked = false;
+}
+
+// ============================================================
+//  WebGL Setup
+// ============================================================
+const VERT = `
+  attribute vec2 a_pos;
+  varying vec2 v_uv;
+  void main() {
+    v_uv = a_pos * 0.5 + 0.5;
+    v_uv.y = 1.0 - v_uv.y;
+    gl_Position = vec4(a_pos, 0, 1);
+  }
+`;
+
+const FRAG = `
+  precision highp float;
+  varying vec2 v_uv;
+  uniform sampler2D u_tex;
+  uniform vec2  u_center;
+  uniform float u_radius;
+  uniform float u_strength;
+  uniform float u_mode;
+  uniform vec2  u_resolution;
+  uniform vec2  u_texSize;
+  uniform float u_frameColor; // 0=black, 1=white
+  uniform vec2  u_peelPos;    // peel corner (normalized 0-1)
+  uniform vec2  u_peelCorner; // which corner is being peeled (card-local: 0/1 for each axis)
+  uniform float u_peelClosed;  // force fully closed cover when idle
+  uniform float u_time;
+  uniform sampler2D u_peelTex;       // peel-off film template texture
+  uniform vec2  u_peelTexSize;       // peel template texture dimensions
+  uniform sampler2D u_folderTex;      // folder BACK layer texture
+  uniform sampler2D u_folderFrontTex; // folder FRONT layer texture (overlays on photo)
+  uniform vec2  u_folderTexSize;  // folder texture dimensions
+  uniform vec3  u_folderColor;    // folder body color
+  uniform vec3  u_folderTabColor; // folder tab color
+  uniform vec2  u_photoOffset;    // photo drag offset in folder mode
+
+  // ---- Mode A: Barrel Distortion ----
+  vec2 barrelDistort(vec2 uv, vec2 center, float strength, float aspect) {
+    vec2 d = uv - center;
+    d.x *= aspect;
+    float r = length(d);
+    float rNorm = r * 2.0;
+    float r2 = rNorm * rNorm;
+    float r4 = r2 * r2;
+    float k1 = strength * 1.082;
+    float k2 = strength * strength * 0.406;
+    float scale = 1.0 + k1 * r2 + k2 * r4;
+    d /= scale;
+    d.x /= aspect;
+    return center + d;
+  }
+
+  // ---- Mode B: Local Bulge / Magnifier ----
+  vec2 bulgeDistort(vec2 uv, vec2 center, float radius, float strength, float aspect) {
+    vec2 d = uv - center;
+    d.x *= aspect;
+    float dist = length(d);
+    if (dist >= radius) return uv;
+    float nd = dist / radius;
+    float bulge = pow(1.0 - nd, 2.0) * strength;
+    float newDist = dist * (1.0 - bulge);
+    vec2 dir = dist > 0.001 ? normalize(d) : vec2(0.0);
+    vec2 nd2 = dir * newDist;
+    nd2.x /= aspect;
+    return center + nd2;
+  }
+
+  // ---- Lens frame: circular mask with solid color surround ----
+  vec4 renderFrame(vec2 uv, vec2 center, float radius, float aspect, float fc) {
+    vec2 d = uv - center;
+    d.x *= aspect;
+    float r = length(d);
+    vec3 surroundColor = mix(vec3(0.0), vec3(1.0), fc);
+    float imgMask = 1.0 - smoothstep(radius - 0.012, radius + 0.003, r);
+    return vec4(surroundColor, imgMask);
+  }
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  vec3 applyPeelPhotoLook(vec3 col, vec2 uv) {
+    // Approximation of: 净白+36, kv88+30, 理光+18, 珠光蓝+18,
+    // 柔光17/15, 暗角47, 划痕II 27, 诺基亚 噪点3 强度9 滤镜21 发光4.
+    col = pow(col, vec3(0.88));                 // 净白: brighten mids
+    col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), -0.08);
+
+    // KV88 warm film tone.
+    col *= vec3(1.045, 1.015, 0.965);
+    col = mix(col, col * col * (3.0 - 2.0 * col), 0.10);
+
+    // Ricoh-style contrast and slight green shift.
+    col = (col - 0.5) * 1.09 + 0.5;
+    col.g += 0.012;
+    col.b -= 0.006;
+
+    // Pearl blue: cool shadows, keep highlights creamy.
+    float lum = dot(col, vec3(0.299, 0.587, 0.114));
+    vec3 bluePearl = vec3(0.90, 0.96, 1.08);
+    col = mix(col * bluePearl, col, smoothstep(0.25, 0.85, lum) * 0.75 + 0.25);
+
+    // Soft light / glow.
+    vec3 soft = 1.0 - (1.0 - col) * (1.0 - col);
+    col = mix(col, soft, 0.15 * 0.17);
+    col += vec3(0.04) * 0.04 * smoothstep(0.45, 1.0, lum);
+
+    // Nokia-ish mild poster tone + grain.
+    float n = hash21(uv * u_texSize.xy + u_time * 8.0) - 0.5;
+    col += vec3(n) * 0.018;
+    col = mix(col, floor(col * 24.0) / 24.0, 0.035);
+
+    // Vignette.
+    float d = length((uv - 0.5) * vec2(0.82, 1.0));
+    float vig = 1.0 - smoothstep(0.35, 0.82, d) * 0.47;
+    col *= vig;
+
+    // Scratches II: sparse vertical pale scratches.
+    float stripe = step(0.986, hash21(vec2(floor(uv.x * 90.0), 7.1)));
+    float scratchShape = smoothstep(0.35, 0.95, hash21(vec2(floor(uv.x * 90.0), floor(uv.y * 8.0))));
+    float scratch = stripe * scratchShape * 0.27;
+    col = mix(col, vec3(1.0), scratch * 0.16);
+
+    return clamp(col, 0.0, 1.0);
+  }
+
+  // ---- SDF: Rounded Rectangle ----
+  float sdRoundRect(vec2 p, vec2 halfSize, float r) {
+    vec2 d = abs(p) - halfSize + r;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r;
+  }
+
+  // ---- Mode C: Mosaic / Pixelate within circle ----
+  vec2 mosaicUV(vec2 uv, float blockSize, vec2 texSize) {
+    vec2 blocks = texSize / max(blockSize, 1.0);
+    return floor(uv * blocks) / blocks + 0.5 / blocks;
+  }
+
+  void main() {
+    vec2 uv = v_uv;
+    float screenAspect = u_resolution.x / u_resolution.y;
+    float imgAspect = u_texSize.x / u_texSize.y;
+
+    // Cover crop
+    vec2 texUV = uv;
+    if (screenAspect > imgAspect) {
+      float scale = imgAspect / screenAspect;
+      texUV.y = uv.y * scale + (1.0 - scale) * 0.5;
+    } else {
+      float scale = screenAspect / imgAspect;
+      texUV.x = uv.x * scale + (1.0 - scale) * 0.5;
+    }
+
+    vec4 imgColor;
+
+    if (u_mode < 0.5) {
+      // Mode 0: Barrel fisheye
+      vec2 distorted = barrelDistort(texUV, u_center, u_strength, screenAspect);
+      distorted = clamp(distorted, vec2(0.0), vec2(1.0));
+      imgColor = texture2D(u_tex, distorted);
+
+      // Lens effects
+      vec2 effectDelta = texUV - u_center;
+      effectDelta.x *= screenAspect;
+      float effectDist = length(effectDelta);
+      float effectRadius = u_radius;
+      float normalizedDist = effectDist / max(effectRadius, 0.01);
+
+      float caStrength = 0.004 * smoothstep(0.3, 1.0, normalizedDist);
+      vec2 caDir = normalize(texUV - u_center + vec2(0.0001));
+      vec2 uvR = clamp(distorted + caDir * caStrength, vec2(0.0), vec2(1.0));
+      vec2 uvB = clamp(distorted - caDir * caStrength, vec2(0.0), vec2(1.0));
+      imgColor.r = texture2D(u_tex, uvR).r;
+      imgColor.b = texture2D(u_tex, uvB).b;
+
+      float vignette = 1.0 - 0.25 * smoothstep(0.4, 1.0, normalizedDist);
+      imgColor.rgb *= mix(1.0, vignette, 0.5);
+
+      vec2 flareCenter = u_center + vec2(0.25, 0.20);
+      vec2 flareDelta = texUV - flareCenter;
+      flareDelta.x *= screenAspect;
+      float flare = exp(-dot(flareDelta,flareDelta) * 12.0) * 0.15;
+      vec2 flare2Center = u_center + vec2(0.15, 0.25);
+      vec2 flare2Delta = texUV - flare2Center;
+      flare2Delta.x *= screenAspect;
+      float flare2 = exp(-dot(flare2Delta,flare2Delta) * 25.0) * 0.08;
+      imgColor.rgb += vec3(1.0, 0.7, 0.3) * flare + vec3(0.4, 0.5, 1.0) * flare2;
+
+      float luma = dot(imgColor.rgb, vec3(0.299, 0.587, 0.114));
+      imgColor.rgb = mix(imgColor.rgb, vec3(luma), 0.03);
+      imgColor.rgb += vec3(-0.003, 0.0, 0.006) * (1.0 - normalizedDist);
+
+      float frameRadius = u_radius;
+      vec4 frame = renderFrame(uv, u_center, frameRadius, screenAspect, u_frameColor);
+      gl_FragColor = vec4(mix(frame.rgb, imgColor.rgb, frame.a), 1.0);
+
+    } else if (u_mode < 1.5) {
+      // Mode 1: Bulge / Magnifier
+      vec2 distorted = bulgeDistort(texUV, u_center, u_radius * 1.6, u_strength, screenAspect);
+      distorted = clamp(distorted, vec2(0.0), vec2(1.0));
+      imgColor = texture2D(u_tex, distorted);
+
+      vec2 effectDelta = texUV - u_center;
+      effectDelta.x *= screenAspect;
+      float effectDist = length(effectDelta);
+      float effectRadius = u_radius + 0.08;
+      float normalizedDist = effectDist / max(effectRadius, 0.01);
+
+      float caStrength = 0.004 * smoothstep(0.3, 1.0, normalizedDist);
+      vec2 caDir = normalize(texUV - u_center + vec2(0.0001));
+      vec2 uvR = clamp(distorted + caDir * caStrength, vec2(0.0), vec2(1.0));
+      vec2 uvB = clamp(distorted - caDir * caStrength, vec2(0.0), vec2(1.0));
+      imgColor.r = texture2D(u_tex, uvR).r;
+      imgColor.b = texture2D(u_tex, uvB).b;
+
+      float vignette = 1.0 - 0.25 * smoothstep(0.4, 1.0, normalizedDist);
+      imgColor.rgb *= mix(1.0, vignette, 0.5);
+
+      vec2 flareCenter = u_center + vec2(0.25, 0.20);
+      vec2 flareDelta = texUV - flareCenter;
+      flareDelta.x *= screenAspect;
+      float flare = exp(-dot(flareDelta,flareDelta) * 12.0) * 0.15;
+      vec2 flare2Center = u_center + vec2(0.15, 0.25);
+      vec2 flare2Delta = texUV - flare2Center;
+      flare2Delta.x *= screenAspect;
+      float flare2 = exp(-dot(flare2Delta,flare2Delta) * 25.0) * 0.08;
+      imgColor.rgb += vec3(1.0, 0.7, 0.3) * flare + vec3(0.4, 0.5, 1.0) * flare2;
+
+      float luma = dot(imgColor.rgb, vec3(0.299, 0.587, 0.114));
+      imgColor.rgb = mix(imgColor.rgb, vec3(luma), 0.03);
+      imgColor.rgb += vec3(-0.003, 0.0, 0.006) * (1.0 - normalizedDist);
+
+      float frameRadius = u_radius + 0.08;
+      vec4 frame = renderFrame(uv, u_center, frameRadius, screenAspect, u_frameColor);
+      gl_FragColor = vec4(mix(frame.rgb, imgColor.rgb, frame.a), 1.0);
+
+    } else if (u_mode < 2.5) {
+      // Mode 2: Mosaic — pixelate inside circle, clear outside
+      vec2 delta = texUV - u_center;
+      delta.x *= screenAspect;
+      float dist = length(delta);
+      float mosaicRadius = u_radius;
+
+      // Block size: strength 0~1.5 maps to 2~80 pixel blocks
+      float blockSize = mix(2.0, 80.0, u_strength / 1.5);
+
+      // Soft fade at the edge: mosaic blends smoothly into original
+      float mosAlpha = 1.0 - smoothstep(mosaicRadius - 0.04, mosaicRadius, dist);
+      vec2 mosUV = mosaicUV(texUV, blockSize, u_texSize);
+      vec4 mosColor = texture2D(u_tex, mosUV);
+      vec4 clearColor = texture2D(u_tex, texUV);
+      imgColor = mix(clearColor, mosColor, mosAlpha);
+
+      // No frame for mosaic mode
+      gl_FragColor = vec4(imgColor.rgb, 1.0);
+
+    } else if (u_mode < 3.5) {
+      // Mode 3: Sticker — 3D puffy gel sticker effect
+      // 1. Bulge distortion for the "puffed up" shape
+      float stickerRadius = u_radius;
+      vec2 delta = texUV - u_center;
+      delta.x *= screenAspect;
+      float dist = length(delta);
+      float nd = dist / max(stickerRadius, 0.001); // normalized dist [0,1] inside
+
+      // Bulge the image (reuse bulge function)
+      vec2 distorted = bulgeDistort(texUV, u_center, stickerRadius * 1.2, u_strength, screenAspect);
+      distorted = clamp(distorted, vec2(0.0), vec2(1.0));
+      imgColor = texture2D(u_tex, distorted);
+
+      if (nd < 1.0) {
+        // --- Inside the sticker ---
+
+        // Sphere height at this point (for lighting)
+        float z = sqrt(max(0.0, 1.0 - nd * nd));
+
+        // 2. Gel / resin color tint — lighten + slight pastel shift
+        imgColor.rgb = mix(imgColor.rgb, vec3(1.0), 0.12 * u_strength); // lighten
+        imgColor.rgb *= vec3(1.02, 1.0, 1.03); // very slight cool pastel
+
+        // 3. Specular highlight (top-left light source)
+        vec3 lightDir = normalize(vec3(-0.45, -0.5, 0.8));
+        vec3 normal = normalize(vec3(delta.x, delta.y, z * stickerRadius));
+        vec3 viewDir = vec3(0.0, 0.0, 1.0);
+        vec3 halfVec = normalize(lightDir + viewDir);
+        float specular = pow(max(dot(normal, halfVec), 0.0), 40.0);
+        // Broad soft highlight
+        float softSpec = pow(max(dot(normal, halfVec), 0.0), 8.0);
+
+        // Add crisp specular + soft glow
+        imgColor.rgb += vec3(1.0) * specular * 0.7;
+        imgColor.rgb += vec3(1.0, 0.98, 0.95) * softSpec * 0.15;
+
+        // 4. Rim light (edge catch light for gel look)
+        float rim = pow(1.0 - z, 3.0);
+        imgColor.rgb += vec3(1.0, 0.95, 0.9) * rim * 0.12;
+
+        // 5. Subtle refraction rainbow at edges (iridescence)
+        float rainbow = pow(1.0 - z, 2.0) * 0.06;
+        float angle = atan(delta.y, delta.x);
+        imgColor.r += rainbow * (0.5 + 0.5 * sin(angle * 2.0));
+        imgColor.g += rainbow * (0.5 + 0.5 * sin(angle * 2.0 + 2.09));
+        imgColor.b += rainbow * (0.5 + 0.5 * sin(angle * 2.0 + 4.19));
+
+      } else {
+        // Outside sticker: show original image
+        imgColor = texture2D(u_tex, texUV);
+      }
+
+      // 6. Drop shadow (offset down-right, behind the sticker)
+      vec2 shadowOffset = vec2(0.012, 0.018);
+      vec2 shadowDelta = texUV - u_center - shadowOffset;
+      shadowDelta.x *= screenAspect;
+      float shadowDist = length(shadowDelta);
+      float shadow = smoothstep(stickerRadius + 0.03, stickerRadius - 0.01, shadowDist);
+      // Only apply shadow outside the sticker itself
+      if (nd >= 1.0) {
+        imgColor.rgb *= 1.0 - shadow * 0.35;
+      }
+
+      // Frame
+      float frameRadius = u_radius + 0.08;
+      vec4 frame = renderFrame(uv, u_center, frameRadius, screenAspect, u_frameColor);
+      gl_FragColor = vec4(mix(frame.rgb, imgColor.rgb, frame.a), 1.0);
+
+    } else if (u_mode < 4.5) {
+      // Mode 4: Peel-off film template.
+      // Uses image 27.png as the paper/frame texture. The user photo sits in
+      // the central window; the original white window acts as the peel cover.
+
+      float screenAR = u_resolution.x / u_resolution.y;
+      float peelAR = u_peelTexSize.x / u_peelTexSize.y;
+      float peelScale = 0.86;
+      float halfH = peelScale * 0.5;
+      float halfW = halfH * peelAR / screenAR;
+
+      vec2 tmplMin = vec2(0.5 - halfW, 0.5 - halfH);
+      vec2 tmplSize = vec2(halfW * 2.0, halfH * 2.0);
+      vec2 pUV = (uv - tmplMin) / tmplSize;
+
+      vec3 bgColor = vec3(0.0);
+      if (pUV.x < 0.0 || pUV.x > 1.0 || pUV.y < 0.0 || pUV.y > 1.0) {
+        gl_FragColor = vec4(bgColor, 1.0);
+      } else {
+        vec4 paper = texture2D(u_peelTex, pUV);
+        vec3 result = mix(bgColor, paper.rgb, paper.a);
+
+        // Central photo window inside the supplied template.
+        vec2 cardMinP = vec2(0.074, 0.064);
+        vec2 cardMaxP = vec2(0.926, 0.712);
+        vec2 cardSizeP = cardMaxP - cardMinP;
+        bool inCard = pUV.x >= cardMinP.x && pUV.x <= cardMaxP.x &&
+                      pUV.y >= cardMinP.y && pUV.y <= cardMaxP.y;
+
+        vec2 localUV = (pUV - cardMinP) / cardSizeP;
+
+        // Cover-crop the user photo into the template's photo window.
+        float photoAR = u_texSize.x / u_texSize.y;
+        float cardAR = cardSizeP.x * u_peelTexSize.x / (cardSizeP.y * u_peelTexSize.y);
+        vec2 photoUV = localUV;
+        if (photoAR > cardAR) {
+          float sc = cardAR / photoAR;
+          photoUV.x = localUV.x * sc + (1.0 - sc) * 0.5;
+        } else {
+          float sc = photoAR / cardAR;
+          photoUV.y = localUV.y * sc + (1.0 - sc) * 0.5;
+        }
+        photoUV = clamp(photoUV, vec2(0.0), vec2(1.0));
+        vec3 photoCol = texture2D(u_tex, photoUV).rgb;
+        photoCol = applyPeelPhotoLook(photoCol, photoUV);
+
+        // Base layer: template first, photo only inside the window.
+        if (inCard) result = photoCol;
+
+        // Match JS hit testing: convert the same template photo window into screen UV.
+        vec2 cardMin = tmplMin + tmplSize * cardMinP;
+        vec2 cardSize = tmplSize * cardSizeP;
+
+        vec2 peelLocal = (u_peelPos - cardMin) / cardSize;
+        vec2 cornerLocal = u_peelCorner;
+        float dragDist = distance(cornerLocal, peelLocal);
+
+        // Clean dark grey peel cover.
+        float coverGrad = dot(clamp(localUV, vec2(0.0), vec2(1.0)), vec2(0.25, 0.75));
+        vec3 coverCol = vec3(0.10, 0.10, 0.11) + vec3(0.035) * coverGrad;
+
+        // Treat small JS/shader coordinate mismatches as fully closed.
+        // Otherwise switching into peel mode can start in a tiny partially-peeled state.
+        if (u_peelClosed > 0.5 || dragDist < 0.03) {
+          if (inCard) result = coverCol;
+        } else {
+          vec2 mid = (cornerLocal + peelLocal) * 0.5;
+          vec2 foldN = normalize(peelLocal - cornerLocal);
+          float d = dot(localUV - mid, foldN);
+          float curlR = max(0.012, 0.026 * u_strength);
+          float curlLen = 3.14159 * curlR;
+          // Keep the entire peeling process inside the central photo viewport so the
+          // dark film never touches the asset's antialiased border/frame.
+          bool inFilmBounds = inCard;
+
+          if (inCard && d > curlLen) {
+            result = coverCol;
+          } else if (inFilmBounds && d > 0.0 && d <= curlLen) {
+            float arc = curlLen - d;
+            float ang = arc / curlR;
+            vec3 backCol = vec3(0.28, 0.285, 0.30);
+
+            float nz = cos(ang);
+            float ny = sin(ang);
+            vec3 curlN = normalize(vec3(-foldN * ny, nz));
+            vec3 lDir = normalize(vec3(-0.4, -0.5, 0.8));
+            vec3 vDir = vec3(0.0, 0.0, 1.0);
+            float diff = max(dot(curlN, lDir), 0.0);
+            vec3 hDir = normalize(lDir + vDir);
+            float sp = pow(max(dot(curlN, hDir), 0.0), 64.0);
+
+            vec3 curlCol = backCol * (0.68 + 0.32 * diff);
+            curlCol += vec3(1.0) * sp * 0.25;
+
+            float sh = smoothstep(0.0, curlLen * 0.5, arc) * 0.22;
+            vec3 below = result * (1.0 - sh);
+            float curlZ = curlR * (1.0 - cos(ang));
+            float alpha = smoothstep(0.0, 0.004, curlZ);
+            result = mix(below, curlCol, alpha);
+          } else if (inCard) {
+            float eDist = -d;
+            float sh = exp(-eDist * 12.0) * 0.12;
+            result = photoCol * (1.0 - sh);
+          }
+        }
+
+        gl_FragColor = vec4(mix(bgColor, result, paper.a), 1.0);
+      }
+
+    } else if (u_mode < 5.5) {
+      // Mode 5: Folder Icon — layered compositing approach
+      // Layer order: background → back layer (folder shell) → photo → front layer (effects/lines)
+
+      float screenAR = u_resolution.x / u_resolution.y;
+
+      // Folder texture aspect (1004 × 854)
+      float folderAR = u_folderTexSize.x / u_folderTexSize.y;
+
+      // Scale folder to ~50% viewport height, centered
+      float folderScale = 0.50;
+      float halfH = folderScale * 0.5;
+      float halfW = halfH * folderAR / screenAR;
+
+      // Map screen UV → folder texture UV [0,1]
+      vec2 fUV = vec2(
+        (uv.x - (0.5 - halfW)) / (halfW * 2.0),
+        (uv.y - (0.5 - halfH)) / (halfH * 2.0)
+      );
+
+      vec3 bgColor = vec3(0.0);
+
+      if (fUV.x < 0.0 || fUV.x > 1.0 || fUV.y < 0.0 || fUV.y > 1.0) {
+        gl_FragColor = vec4(bgColor, 1.0);
+      } else {
+        // 1) Sample back layer (folder shell: outline + tab + shadow)
+        vec4 backSample = texture2D(u_folderTex, fUV);
+
+        // Start with background, composite back layer over it
+        vec3 result = mix(bgColor, backSample.rgb, backSample.a);
+
+        // 2) Composite photo on top wherever back layer has content
+        if (backSample.a > 0.01) {
+          // Folder content bounds in texture UV (x:32..972, y:16..806 in 1004×854)
+          vec2 contentMin = vec2(32.0 / 1004.0, 16.0 / 854.0);
+          vec2 contentMax = vec2(972.0 / 1004.0, 806.0 / 854.0);
+          vec2 contentSize = contentMax - contentMin;
+
+          // Map folder UV to content-local [0,1]
+          vec2 cLocal = (fUV - contentMin) / contentSize;
+          cLocal -= u_photoOffset;
+
+          // Cover crop photo into content area
+          float photoAR = u_texSize.x / u_texSize.y;
+          float contentAR = contentSize.x * u_folderTexSize.x /
+                           (contentSize.y * u_folderTexSize.y);
+
+          vec2 photoUV = cLocal;
+          if (photoAR > contentAR) {
+            float sc = contentAR / photoAR;
+            photoUV.x = cLocal.x * sc + (1.0 - sc) * 0.5;
+          } else {
+            float sc = photoAR / contentAR;
+            photoUV.y = cLocal.y * sc + (1.0 - sc) * 0.5;
+          }
+          photoUV = clamp(photoUV, vec2(0.0), vec2(1.0));
+          vec3 photoCol = texture2D(u_tex, photoUV).rgb;
+
+          // Place photo directly on top of back layer (replaces folder fill)
+          result = photoCol;
+        }
+
+        // 3) Overlay front layer (inner shadow, highlight, decorative lines)
+        //    Use multiply-blend so white areas are transparent and dark areas (shadows) darken the photo
+        vec4 frontSample = texture2D(u_folderFrontTex, fUV);
+        if (frontSample.a > 0.01) {
+          // Multiply blend: result * frontColor preserves bright areas, darkens with shadows
+          vec3 frontMul = result * frontSample.rgb;
+          // Blend strength controlled by front alpha
+          result = mix(result, frontMul, frontSample.a);
+          // Re-add any bright highlights (white-on-white lines) as additive
+          float frontLum = dot(frontSample.rgb, vec3(0.299, 0.587, 0.114));
+          // Decorative lines are white with low alpha — they should lighten, not darken
+          // If front pixel is bright and semi-transparent, add a slight highlight
+          float highlight = max(0.0, frontLum - 0.9) * frontSample.a * 3.0;
+          result += vec3(highlight);
+        }
+
+        // 4) Re-apply back layer alpha for clean outer edge
+        gl_FragColor = vec4(mix(bgColor, result, backSample.a), 1.0);
+      }
+    } else {
+      // Mode 6: Die-cut sticker — alpha cutout + white outline + drop shadow.
+      // Intended to be used after BG removal, but also works as a rectangular sticker
+      // for ordinary opaque images.
+      float stickerScale = 0.68;
+      float halfH = stickerScale * 0.5;
+      float halfW = halfH * imgAspect / screenAspect;
+      if (halfW > 0.46) {
+        halfW = 0.46;
+        halfH = halfW * screenAspect / imgAspect;
+      }
+
+      vec2 stickerMin = vec2(0.5 - halfW, 0.5 - halfH);
+      vec2 stickerSize = vec2(halfW * 2.0, halfH * 2.0);
+      vec2 sUV = (uv - stickerMin) / stickerSize;
+      vec3 bgColor = vec3(0.0);
+      vec3 result = bgColor;
+
+      vec2 outlinePx = vec2(18.0) / u_texSize;
+      vec2 shadowOffset = vec2(0.025, 0.035);
+      vec2 shadowUV = sUV - shadowOffset;
+      float shadowAlpha = 0.0;
+      if (shadowUV.x >= 0.0 && shadowUV.x <= 1.0 && shadowUV.y >= 0.0 && shadowUV.y <= 1.0) {
+        shadowAlpha = texture2D(u_tex, shadowUV).a;
+      }
+      result = mix(result, vec3(0.0), shadowAlpha * 0.34);
+
+      if (sUV.x >= 0.0 && sUV.x <= 1.0 && sUV.y >= 0.0 && sUV.y <= 1.0) {
+        vec4 sampleCol = texture2D(u_tex, sUV);
+        float a = sampleCol.a;
+        float outlineA = 0.0;
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 1.0,  0.0)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2(-1.0,  0.0)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 0.0,  1.0)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 0.0, -1.0)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 0.707,  0.707)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2(-0.707,  0.707)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 0.707, -0.707)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2(-0.707, -0.707)).a);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 1.8,  0.0)).a * 0.8);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2(-1.8,  0.0)).a * 0.8);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 0.0,  1.8)).a * 0.8);
+        outlineA = max(outlineA, texture2D(u_tex, sUV + outlinePx * vec2( 0.0, -1.8)).a * 0.8);
+
+        float whiteEdge = smoothstep(0.02, 0.35, outlineA) * (1.0 - smoothstep(0.45, 0.9, a));
+        result = mix(result, vec3(1.0), whiteEdge);
+        vec3 printCol = sampleCol.rgb;
+        printCol = mix(printCol, vec3(1.0), 0.03);
+        result = mix(result, printCol, a);
+      }
+
+      gl_FragColor = vec4(result, 1.0);
+    }
+  }
+`;
+
+function initGL() {
+  canvas = document.getElementById('glCanvas');
+  canvasWrap = document.getElementById('canvasWrap');
+  crosshair = document.getElementById('crosshair');
+  radiusRing = document.getElementById('radiusRing');
+
+  gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
+  if (!gl) { alert('WebGL not supported'); return; }
+
+  // Compile shaders
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, VERT); gl.compileShader(vs);
+  if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) console.error('VS:', gl.getShaderInfoLog(vs));
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, FRAG); gl.compileShader(fs);
+  if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) console.error('FS:', gl.getShaderInfoLog(fs));
+
+  program = gl.createProgram();
+  gl.attachShader(program, vs); gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) console.error('Link:', gl.getProgramInfoLog(program));
+  gl.useProgram(program);
+
+  // Fullscreen quad
+  posBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(program, 'a_pos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  // Uniforms
+  uCenter     = gl.getUniformLocation(program, 'u_center');
+  uRadius     = gl.getUniformLocation(program, 'u_radius');
+  uStrength   = gl.getUniformLocation(program, 'u_strength');
+  uMode       = gl.getUniformLocation(program, 'u_mode');
+  uResolution = gl.getUniformLocation(program, 'u_resolution');
+  uTexSize    = gl.getUniformLocation(program, 'u_texSize');
+  uFrameColor = gl.getUniformLocation(program, 'u_frameColor');
+  uPeelPos    = gl.getUniformLocation(program, 'u_peelPos');
+  uPeelCorner = gl.getUniformLocation(program, 'u_peelCorner');
+  uPeelClosed = gl.getUniformLocation(program, 'u_peelClosed');
+  uTime       = gl.getUniformLocation(program, 'u_time');
+  uPeelTex    = gl.getUniformLocation(program, 'u_peelTex');
+  uPeelTexSize= gl.getUniformLocation(program, 'u_peelTexSize');
+  uFolderColor   = gl.getUniformLocation(program, 'u_folderColor');
+  uFolderTabColor= gl.getUniformLocation(program, 'u_folderTabColor');
+  uPhotoOffset   = gl.getUniformLocation(program, 'u_photoOffset');
+  uFolderTex     = gl.getUniformLocation(program, 'u_folderTex');
+  uFolderFrontTex= gl.getUniformLocation(program, 'u_folderFrontTex');
+  uFolderTexSize = gl.getUniformLocation(program, 'u_folderTexSize');
+
+  // Photo texture (unit 0)
+  texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  // Peel template texture (unit 3) — loaded from image 27.png
+  peelTexture = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D, peelTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  // Folder back texture (unit 1) — will be loaded from FolderBack.svg
+  folderTexture = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, folderTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  // Folder front texture (unit 2) — will be loaded from FolderFront.svg
+  folderFrontTexture = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, folderFrontTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  gl.activeTexture(gl.TEXTURE0);
+
+  // Load Folder.svg as texture
+  loadFolderTexture();
+  loadPeelTexture();
+}
+
+function loadPeelTexture() {
+  const img = new Image();
+  img.onload = function() {
+    let sw = img.naturalWidth || img.width;
+    let sh = img.naturalHeight || img.height;
+    let source = img;
+    const maxDim = 4096;
+    if (Math.max(sw, sh) > maxDim) {
+      const scale = maxDim / Math.max(sw, sh);
+      const oc = document.createElement('canvas');
+      oc.width = Math.round(sw * scale);
+      oc.height = Math.round(sh * scale);
+      oc.getContext('2d').drawImage(img, 0, 0, oc.width, oc.height);
+      source = oc;
+      sw = oc.width;
+      sh = oc.height;
+    }
+    peelTexWidth = sw;
+    peelTexHeight = sh;
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, peelTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.activeTexture(gl.TEXTURE0);
+  };
+  img.src = 'image%2027.png';
+}
+
+function loadFolderTexture() {
+  const svgW = 1004, svgH = 854;
+  const scale = 2;
+
+  // Load back layer
+  const imgBack = new Image();
+  imgBack.onload = function() {
+    const oc = document.createElement('canvas');
+    oc.width = svgW * scale;
+    oc.height = svgH * scale;
+    const ctx = oc.getContext('2d');
+    ctx.drawImage(imgBack, 0, 0, oc.width, oc.height);
+
+    folderTexWidth = oc.width;
+    folderTexHeight = oc.height;
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, folderTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, oc);
+    gl.activeTexture(gl.TEXTURE0);
+    folderTexReady = true;
+  };
+  imgBack.src = 'FolderBack.svg';
+
+  // Load front layer
+  const imgFront = new Image();
+  imgFront.onload = function() {
+    const oc = document.createElement('canvas');
+    oc.width = svgW * scale;
+    oc.height = svgH * scale;
+    const ctx = oc.getContext('2d');
+    ctx.drawImage(imgFront, 0, 0, oc.width, oc.height);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, folderFrontTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, oc);
+    gl.activeTexture(gl.TEXTURE0);
+    folderFrontTexReady = true;
+  };
+  imgFront.src = 'FolderFront.svg';
+}
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvasWrap.clientWidth;
+  const h = canvasWrap.clientHeight;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+function render() {
+  if (!S.imgLoaded) { rafId = requestAnimationFrame(render); return; }
+
+  // Peel-off spring animation
+  if (S.peelSpringActive && !S.peelDragging) {
+    // Closed target = the active corner's screen UV position
+    const closedUV = getCardCornerUV(S.peelCornerX, S.peelCornerY);
+    // Open target = opposite corner, extended past it so film fully peels off
+    const oppositeUV = getCardCornerUV(1.0 - S.peelCornerX, 1.0 - S.peelCornerY);
+    const extX = S.peelOpen ? oppositeUV.x + (oppositeUV.x - closedUV.x) * 1.35 : closedUV.x;
+    const extY = S.peelOpen ? oppositeUV.y + (oppositeUV.y - closedUV.y) * 1.35 : closedUV.y;
+    const tx = extX;
+    const ty = extY;
+    const dx = tx - S.peelX, dy = ty - S.peelY;
+    const k = 0.12, damp = 0.75;
+    S.peelVx = (S.peelVx + dx * k) * damp;
+    S.peelVy = (S.peelVy + dy * k) * damp;
+    S.peelX += S.peelVx;
+    S.peelY += S.peelVy;
+    if (Math.abs(dx) < 0.002 && Math.abs(dy) < 0.002 && Math.abs(S.peelVx) < 0.001) {
+      S.peelX = tx; S.peelY = ty;
+      S.peelSpringActive = false;
+    }
+  }
+  S.peelTime += 0.016;
+
+  gl.uniform2f(uCenter, S.cx, S.cy);
+  gl.uniform1f(uRadius, S.radius);
+  gl.uniform1f(uStrength, S.strength);
+  gl.uniform1f(uMode, S.mode);
+  gl.uniform2f(uResolution, canvas.width, canvas.height);
+  gl.uniform2f(uTexSize, imgWidth, imgHeight);
+  gl.uniform1f(uFrameColor, S.frameColor);
+  gl.uniform2f(uPeelPos, S.peelX, S.peelY);
+  gl.uniform2f(uPeelCorner, S.peelCornerX, S.peelCornerY);
+  gl.uniform1f(uPeelClosed, (!S.peelDragging && !S.peelSpringActive && !S.peelOpen) ? 1.0 : 0.0);
+  gl.uniform2f(uPeelTexSize, peelTexWidth, peelTexHeight);
+  gl.uniform1f(uTime, S.peelTime);
+
+  const fc = FOLDER_COLORS[S.folderColorIdx];
+  gl.uniform3f(uFolderColor, fc.body[0], fc.body[1], fc.body[2]);
+  gl.uniform3f(uFolderTabColor, fc.tab[0], fc.tab[1], fc.tab[2]);
+  gl.uniform2f(uPhotoOffset, S.photoOffX, S.photoOffY);
+
+  // Bind textures
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.uniform1i(gl.getUniformLocation(program, 'u_tex'), 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, folderTexture);
+  gl.uniform1i(uFolderTex, 1);
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, folderFrontTexture);
+  gl.uniform1i(uFolderFrontTex, 2);
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D, peelTexture);
+  gl.uniform1i(uPeelTex, 3);
+  gl.uniform2f(uFolderTexSize, folderTexWidth, folderTexHeight);
+  gl.activeTexture(gl.TEXTURE0);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  updateOverlay();
+  rafId = requestAnimationFrame(render);
+}
+
+// ============================================================
+//  Image Loading
+// ============================================================
+function loadImageToGL(img) {
+  imgWidth = img.naturalWidth || img.width;
+  imgHeight = img.naturalHeight || img.height;
+
+  // Limit texture size for mobile
+  const maxDim = 4096;
+  let sw = imgWidth, sh = imgHeight;
+  if (Math.max(sw, sh) > maxDim) {
+    const scale = maxDim / Math.max(sw, sh);
+    sw = Math.round(sw * scale);
+    sh = Math.round(sh * scale);
+    const oc = document.createElement('canvas');
+    oc.width = sw; oc.height = sh;
+    oc.getContext('2d').drawImage(img, 0, 0, sw, sh);
+    img = oc;
+    imgWidth = sw; imgHeight = sh;
+  }
+
+  const source = document.createElement('canvas');
+  source.width = imgWidth;
+  source.height = imgHeight;
+  source.getContext('2d').drawImage(img, 0, 0, imgWidth, imgHeight);
+  sourceImageCanvas = source;
+  img = source;
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  S.imgLoaded = true;
+
+  resizeCanvas();
+}
+
+let backgroundRemovalWorker = null;
+let backgroundRemovalRequestId = 0;
+let backgroundRemovalBusy = false;
+
+function canvasToPngArrayBuffer(source) {
+  return new Promise((resolve, reject) => {
+    source.toBlob(async blob => {
+      if (!blob) {
+        reject(new Error('无法准备图片'));
+        return;
+      }
+      try {
+        resolve(await blob.arrayBuffer());
+      } catch (error) {
+        reject(error);
+      }
+    }, 'image/png');
+  });
+}
+
+function pixelsToCanvas(pixels, width, height) {
+  const output = document.createElement('canvas');
+  output.width = width;
+  output.height = height;
+  const ctx = output.getContext('2d');
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), width, height), 0, 0);
+  return output;
+}
+
+const DIE_CUT_ALPHA_THRESHOLD = 26;
+const DISTANCE_INFINITY = 1_000_000_000_000;
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function distanceTransform1D(source, sourceOffset, sourceStride, target, targetOffset, targetStride, length, parabolas, boundaries) {
+  let envelopeIndex = 0;
+  parabolas[0] = 0;
+  boundaries[0] = Number.NEGATIVE_INFINITY;
+  boundaries[1] = Number.POSITIVE_INFINITY;
+
+  for (let position = 1; position < length; position++) {
+    let previous = parabolas[envelopeIndex];
+    let intersection = (
+      source[sourceOffset + position * sourceStride] + position * position -
+      (source[sourceOffset + previous * sourceStride] + previous * previous)
+    ) / (2 * position - 2 * previous);
+    while (intersection <= boundaries[envelopeIndex]) {
+      envelopeIndex--;
+      previous = parabolas[envelopeIndex];
+      intersection = (
+        source[sourceOffset + position * sourceStride] + position * position -
+        (source[sourceOffset + previous * sourceStride] + previous * previous)
+      ) / (2 * position - 2 * previous);
+    }
+    envelopeIndex++;
+    parabolas[envelopeIndex] = position;
+    boundaries[envelopeIndex] = intersection;
+    boundaries[envelopeIndex + 1] = Number.POSITIVE_INFINITY;
+  }
+
+  envelopeIndex = 0;
+  for (let position = 0; position < length; position++) {
+    while (boundaries[envelopeIndex + 1] < position) envelopeIndex++;
+    const nearest = parabolas[envelopeIndex];
+    const delta = position - nearest;
+    target[targetOffset + position * targetStride] = delta * delta + source[sourceOffset + nearest * sourceStride];
+  }
+}
+
+function expandAlpha(source, radius) {
+  const width = source.width;
+  const height = source.height;
+  const sourceContext = source.getContext('2d', { willReadFrequently: true });
+  const sourcePixels = sourceContext.getImageData(0, 0, width, height).data;
+  const size = width * height;
+  const seeds = new Float32Array(size);
+  const rowDistances = new Float32Array(size);
+  let hasSeed = false;
+
+  for (let pixel = 0; pixel < size; pixel++) {
+    const occupied = sourcePixels[pixel * 4 + 3] >= DIE_CUT_ALPHA_THRESHOLD;
+    seeds[pixel] = occupied ? 0 : DISTANCE_INFINITY;
+    hasSeed ||= occupied;
+  }
+
+  const maxLength = Math.max(width, height);
+  const parabolas = new Int32Array(maxLength);
+  const boundaries = new Float64Array(maxLength + 1);
+  if (hasSeed) {
+    for (let y = 0; y < height; y++) {
+      distanceTransform1D(seeds, y * width, 1, rowDistances, y * width, 1, width, parabolas, boundaries);
+    }
+    for (let x = 0; x < width; x++) {
+      distanceTransform1D(rowDistances, x, width, seeds, x, width, height, parabolas, boundaries);
+    }
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  const mask = context.createImageData(width, height);
+  for (let pixel = 0; pixel < size; pixel++) {
+    const coverage = hasSeed ? clampNumber(radius + 0.5 - Math.sqrt(seeds[pixel]), 0, 1) : 0;
+    const offset = pixel * 4;
+    mask.data[offset] = 255;
+    mask.data[offset + 1] = 255;
+    mask.data[offset + 2] = 255;
+    mask.data[offset + 3] = Math.round(coverage * 255);
+  }
+  context.putImageData(mask, 0, 0);
+  return canvas;
+}
+
+function tintAlpha(source, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const context = canvas.getContext('2d');
+  context.fillStyle = color;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.globalCompositeOperation = 'destination-in';
+  context.drawImage(source, 0, 0);
+  return canvas;
+}
+
+function addDieCutOutline(source, outlineWidth = 18, outlineColor = '#ffffff') {
+  const radius = clampNumber(outlineWidth * 2.35, 0, 112);
+  const canvas = document.createElement('canvas');
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const context = canvas.getContext('2d');
+  if (radius > 0.25) {
+    const expanded = expandAlpha(source, radius);
+    context.drawImage(tintAlpha(expanded, outlineColor), 0, 0);
+  }
+  context.drawImage(source, 0, 0);
+  return canvas;
+}
+
+function getBackgroundRemovalWorker() {
+  if (backgroundRemovalWorker) return backgroundRemovalWorker;
+  backgroundRemovalWorker = new Worker('background-removal.worker.js', {
+    type: 'module',
+    name: 'cam-background-removal',
+  });
+  return backgroundRemovalWorker;
+}
+
+async function removeBackgroundAI() {
+  if (!S.imgLoaded || !sourceImageCanvas) {
+    showToast('请先上传图片');
+    return;
+  }
+  if (backgroundRemovalBusy) return;
+  backgroundRemovalBusy = true;
+  showToast('正在加载抠图模型...');
+
+  const worker = getBackgroundRemovalWorker();
+  const id = ++backgroundRemovalRequestId;
+
+  try {
+    const image = await canvasToPngArrayBuffer(sourceImageCanvas);
+    const result = await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        worker.removeEventListener('message', onMessage);
+        worker.removeEventListener('error', onError);
+      };
+      const onError = event => {
+        cleanup();
+        reject(new Error(event.message || '抠图 worker 失败'));
+      };
+      const onMessage = event => {
+        const msg = event.data;
+        if (!msg || msg.id !== id) return;
+        if (msg.type === 'progress') {
+          if (msg.phase === 'loading') {
+            const pct = Number.isFinite(msg.progress) ? ` ${Math.round(msg.progress)}%` : '';
+            showToast(`正在加载模型${pct}`);
+          } else {
+            showToast('正在抠图...');
+          }
+          return;
+        }
+        cleanup();
+        if (msg.type === 'error') {
+          reject(new Error(msg.message || '抠图失败'));
+          return;
+        }
+        resolve(msg);
+      };
+      worker.addEventListener('message', onMessage);
+      worker.addEventListener('error', onError);
+      worker.postMessage({ type: 'remove', id, image, mimeType: 'image/png' }, [image]);
+    });
+
+    const cutout = pixelsToCanvas(result.pixels, result.width, result.height);
+    sourceImageCanvas = cutout;
+    loadImageToGL(cutout);
+    showToast('抠图完成', true);
+  } catch (error) {
+    console.error('Background removal failed', error);
+    showToast('抠图失败');
+  } finally {
+    backgroundRemovalBusy = false;
+  }
+}
+
+function removeBackgroundNoAI() {
+  if (!S.imgLoaded || !sourceImageCanvas) {
+    showToast('请先上传图片');
+    return;
+  }
+
+  const src = sourceImageCanvas;
+  const w = src.width;
+  const h = src.height;
+  const work = document.createElement('canvas');
+  work.width = w;
+  work.height = h;
+  const ctx = work.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(src, 0, 0);
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+
+  // Estimate background from the image border.
+  const samples = [];
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 80));
+  function addSample(x, y) {
+    const i = (y * w + x) * 4;
+    if (data[i + 3] > 10) samples.push([data[i], data[i + 1], data[i + 2]]);
+  }
+  for (let x = 0; x < w; x += step) { addSample(x, 0); addSample(x, h - 1); }
+  for (let y = 0; y < h; y += step) { addSample(0, y); addSample(w - 1, y); }
+  if (!samples.length) return;
+
+  const bg = [0, 1, 2].map(c => {
+    const vals = samples.map(s => s[c]).sort((a, b) => a - b);
+    return vals[Math.floor(vals.length / 2)];
+  });
+
+  function colorDistAt(idx) {
+    const dr = data[idx] - bg[0];
+    const dg = data[idx + 1] - bg[1];
+    const db = data[idx + 2] - bg[2];
+    return Math.sqrt(dr * dr + dg * dg + db * db);
+  }
+
+  // Adaptive threshold: works best on clean/plain backgrounds.
+  const edgeDists = samples.map(s => {
+    const dr = s[0] - bg[0], dg = s[1] - bg[1], db = s[2] - bg[2];
+    return Math.sqrt(dr * dr + dg * dg + db * db);
+  }).sort((a, b) => a - b);
+  const edgeMedian = edgeDists[Math.floor(edgeDists.length * 0.65)] || 18;
+  const threshold = Math.max(34, Math.min(86, edgeMedian + 38));
+  const soft = 22;
+
+  // Flood fill from edges to avoid deleting similarly-colored foreground islands.
+  const bgMask = new Uint8Array(w * h);
+  const queue = [];
+  function pushIfBg(x, y) {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    const p = y * w + x;
+    if (bgMask[p]) return;
+    const i = p * 4;
+    if (data[i + 3] < 10 || colorDistAt(i) < threshold) {
+      bgMask[p] = 1;
+      queue.push(p);
+    }
+  }
+  for (let x = 0; x < w; x++) { pushIfBg(x, 0); pushIfBg(x, h - 1); }
+  for (let y = 0; y < h; y++) { pushIfBg(0, y); pushIfBg(w - 1, y); }
+
+  for (let q = 0; q < queue.length; q++) {
+    const p = queue[q];
+    const x = p % w;
+    const y = Math.floor(p / w);
+    pushIfBg(x + 1, y);
+    pushIfBg(x - 1, y);
+    pushIfBg(x, y + 1);
+    pushIfBg(x, y - 1);
+  }
+
+  // Alpha matte with a soft transition near the sampled background color.
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    if (bgMask[p]) {
+      const d = colorDistAt(i);
+      const a = Math.max(0, Math.min(1, (d - (threshold - soft)) / soft));
+      data[i + 3] = Math.round(a * 255);
+      if (data[i + 3] < 12) {
+        data[i] = 0; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = 0;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  sourceImageCanvas = work;
+  loadImageToGL(work);
+  showToast('已尝试去背景');
+}
+
+// ============================================================
+//  Overlay UI (crosshair + radius ring)
+// ============================================================
+function updateOverlay() {
+  const w = canvasWrap.clientWidth;
+  const h = canvasWrap.clientHeight;
+  const px = S.cx * w;
+  const py = S.cy * h;
+
+  crosshair.style.left = px + 'px';
+  crosshair.style.top = py + 'px';
+
+  if (S.mode === 4 || S.mode === 5) {
+    // Peel/Folder mode: no crosshair/radius ring
+    radiusRing.classList.add('hidden');
+  } else if (S.mode === 1) {
+    // 放大镜模式不显示 overlay 圆环（shader 已经画了边框）
+    radiusRing.classList.add('hidden');
+  } else {
+    // 鱼眼模式下不显示 overlay 圆环（shader 已经画了圆形裁切）
+    radiusRing.classList.add('hidden');
+  }
+}
+
+// ============================================================
+//  Touch / Mouse Interaction
+// ============================================================
+function setupTouch() {
+  const el = canvasWrap;
+  let lastTouches = [];
+
+  function norm(clientX, clientY) {
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
+    };
+  }
+
+  function dist2(t) {
+    const dx = t[0].clientX - t[1].clientX;
+    const dy = t[0].clientY - t[1].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  // Empty canvas upload entry. Use click (not touchstart) so mobile browsers
+  // treat file input opening as a direct user activation.
+  el.addEventListener('click', e => {
+    if (!S.imgLoaded) {
+      e.preventDefault();
+      e.stopPropagation();
+      pickImage();
+    }
+  });
+
+  // --- Touch ---
+  el.addEventListener('touchstart', e => {
+    if (!S.imgLoaded) {
+      return;
+    }
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const p = norm(e.touches[0].clientX, e.touches[0].clientY);
+      if (S.mode === 4) {
+        if (S.peelLocked) return;
+        // Check if click is near any card corner (within 0.2 threshold)
+        const closest = findClosestCorner(p.x, p.y);
+        if (closest && closest.dist < 0.2) {
+          S.peelCornerX = closest.localX;
+          S.peelCornerY = closest.localY;
+          S.peelX = p.x; S.peelY = p.y;
+          S.peelDragging = true;
+          S.peelSpringActive = false;
+          S.peelVx = 0; S.peelVy = 0;
+        }
+      } else if (S.mode === 5) {
+        if (isPointInFolder(e.touches[0].clientX, e.touches[0].clientY)) {
+          S.folderDragging = true;
+          S.folderDragStartX = e.touches[0].clientX;
+          S.folderDragStartY = e.touches[0].clientY;
+          S.folderOffStartX = S.photoOffX;
+          S.folderOffStartY = S.photoOffY;
+        }
+      } else {
+        S.dragging = true;
+        crosshair.classList.add('active');
+        radiusRing.classList.add('active');
+        S.cx = p.x; S.cy = p.y;
+      }
+    }
+    if (e.touches.length === 2 && S.mode !== 4 && S.mode !== 5) {
+      S.pinching = true;
+      S.pinchStartDist = dist2(e.touches);
+      S.pinchStartRadius = S.radius;
+    }
+    lastTouches = [...e.touches];
+  }, { passive: false });
+
+  el.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const p = norm(e.touches[0].clientX, e.touches[0].clientY);
+      if (S.mode === 4 && S.peelDragging) {
+        S.peelX = p.x; S.peelY = p.y;
+      } else if (S.mode === 5 && S.folderDragging) {
+        const folderRect = getFolderRectPx();
+        const contentW = folderRect.w * (940 / 1004);
+        const contentH = folderRect.h * (790 / 854);
+        S.photoOffX = S.folderOffStartX + (e.touches[0].clientX - S.folderDragStartX) / contentW;
+        S.photoOffY = S.folderOffStartY + (e.touches[0].clientY - S.folderDragStartY) / contentH;
+      } else if (S.dragging && !S.pinching) {
+        S.cx = p.x; S.cy = p.y;
+      }
+    }
+    if (e.touches.length === 2 && S.pinching) {
+      const d = dist2(e.touches);
+      const scale = d / S.pinchStartDist;
+      S.radius = Math.max(0.05, Math.min(0.6, S.pinchStartRadius * scale));
+      document.getElementById('radiusSlider').value = Math.round(S.radius * 100);
+      document.getElementById('radiusVal').textContent = Math.round(S.radius * 100) + '%';
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const p = norm(mx, my);
+      S.cx = p.x; S.cy = p.y;
+    }
+  }, { passive: false });
+
+  el.addEventListener('touchend', e => {
+    if (e.touches.length < 2) S.pinching = false;
+    if (e.touches.length === 0) {
+      if (S.peelDragging) {
+        S.peelDragging = false;
+        // If dragged past 40% of card diagonal from the active corner, snap fully open; otherwise snap back
+        const cornerUV = getCardCornerUV(S.peelCornerX, S.peelCornerY);
+        const dx = cornerUV.x - S.peelX, dy = cornerUV.y - S.peelY;
+        S.peelOpen = Math.sqrt(dx*dx + dy*dy) > 0.28;
+        if (S.peelOpen) S.peelLocked = true;
+        S.peelSpringActive = true;
+      }
+      S.folderDragging = false;
+      S.dragging = false;
+      crosshair.classList.remove('active');
+      radiusRing.classList.remove('active');
+    }
+  });
+
+  // --- Mouse (for desktop testing) ---
+  el.addEventListener('mousedown', e => {
+    if (!S.imgLoaded) {
+      return;
+    }
+    const p = norm(e.clientX, e.clientY);
+    if (S.mode === 4) {
+      if (S.peelLocked) return;
+      const closest = findClosestCorner(p.x, p.y);
+      if (closest && closest.dist < 0.2) {
+        S.peelCornerX = closest.localX;
+        S.peelCornerY = closest.localY;
+        S.peelX = p.x; S.peelY = p.y;
+        S.peelDragging = true;
+        S.peelSpringActive = false;
+        S.peelVx = 0; S.peelVy = 0;
+      }
+    } else if (S.mode === 5) {
+      if (isPointInFolder(e.clientX, e.clientY)) {
+        S.folderDragging = true;
+        S.folderDragStartX = e.clientX;
+        S.folderDragStartY = e.clientY;
+        S.folderOffStartX = S.photoOffX;
+        S.folderOffStartY = S.photoOffY;
+      }
+    } else {
+      S.dragging = true;
+      crosshair.classList.add('active');
+      radiusRing.classList.add('active');
+      S.cx = p.x; S.cy = p.y;
+    }
+  });
+  window.addEventListener('mousemove', e => {
+    const p = norm(e.clientX, e.clientY);
+    if (S.mode === 4 && S.peelDragging) {
+      S.peelX = p.x; S.peelY = p.y;
+    } else if (S.mode === 5 && S.folderDragging) {
+      const folderRect = getFolderRectPx();
+      const contentW = folderRect.w * (940 / 1004);
+      const contentH = folderRect.h * (790 / 854);
+      S.photoOffX = S.folderOffStartX + (e.clientX - S.folderDragStartX) / contentW;
+      S.photoOffY = S.folderOffStartY + (e.clientY - S.folderDragStartY) / contentH;
+    } else if (S.dragging) {
+      S.cx = p.x; S.cy = p.y;
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    if (S.peelDragging) {
+      S.peelDragging = false;
+      const cornerUV = getCardCornerUV(S.peelCornerX, S.peelCornerY);
+      const dx = cornerUV.x - S.peelX, dy = cornerUV.y - S.peelY;
+      S.peelOpen = Math.sqrt(dx*dx + dy*dy) > 0.28;
+      if (S.peelOpen) S.peelLocked = true;
+      S.peelSpringActive = true;
+    }
+    S.folderDragging = false;
+    S.dragging = false;
+    crosshair.classList.remove('active');
+    radiusRing.classList.remove('active');
+  });
+
+  // Scroll wheel → radius (desktop)
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    S.radius = Math.max(0.05, Math.min(0.6, S.radius - e.deltaY * 0.0005));
+    document.getElementById('radiusSlider').value = Math.round(S.radius * 100);
+    document.getElementById('radiusVal').textContent = Math.round(S.radius * 100) + '%';
+  }, { passive: false });
+}
+
+// ============================================================
+//  Controls
+// ============================================================
+function onStrengthChange(v) {
+  S.strength = v / 100;
+  document.getElementById('strengthVal').textContent = v + '%';
+}
+
+function onRadiusChange(v) {
+  S.radius = v / 100;
+  document.getElementById('radiusVal').textContent = v + '%';
+}
+
+// Per-mode saved params
+const modeParams = {
+  0: { strength: 0.3, radius: 0.5, cx: 0.5, cy: 0.5 },
+  1: { strength: 0.8, radius: 0.42, cx: 0.5, cy: 0.5 },
+  2: { strength: 0.5, radius: 0.35, cx: 0.5, cy: 0.5 },
+  3: { strength: 0.6, radius: 0.3, cx: 0.5, cy: 0.5 },
+  4: { strength: 0.5, radius: 0.3, cx: 0.5, cy: 0.5 },
+  5: { strength: 0.6, radius: 0.12, cx: 0.5, cy: 0.5 },
+  6: { strength: 0.6, radius: 0.3, cx: 0.5, cy: 0.5 },
+};
+
+const modeNames = { 0: '鱼眼', 1: '放大镜', 2: '马赛克', 3: '贴纸', 4: '撕拉片', 5: '文件夹', 6: 'Die-cut' };
+
+function switchMode(m) {
+  // Save current params to old mode
+  modeParams[S.mode] = { strength: S.strength, radius: S.radius, cx: S.cx, cy: S.cy };
+
+  S.mode = m;
+  S.peelDragging = false;
+  S.peelSpringActive = false;
+  document.querySelectorAll('.mode-item').forEach(b => b.classList.toggle('active', +b.dataset.mode === m));
+  document.getElementById('modeTitle').textContent = modeNames[m];
+
+  // Hide frame toggle for mosaic, peel-off, and folder mode
+  document.getElementById('frameToggle').style.display = (m === 2 || m === 4 || m === 5 || m === 6) ? 'none' : 'flex';
+
+  // Show/hide controls per mode
+  const isPeel = m === 4;
+  const isFolder = m === 5;
+  const isDieCut = m === 6;
+  const hideSliders = isPeel || isFolder || isDieCut;
+  document.querySelector('.slider-group').style.display = hideSliders ? 'none' : '';
+  document.getElementById('radiusGroup').style.display = hideSliders ? 'none' : '';
+  crosshair.style.display = (isPeel || isFolder || isDieCut) ? 'none' : '';
+
+  // Folder color picker — no longer needed, folder uses SVG original color
+  document.getElementById('folderColorToggle').style.display = 'none';
+
+  // Slider labels restore for non-folder modes
+  if (!isFolder) {
+    document.querySelector('.slider-group .slider-label span:first-child').textContent = '强度';
+    document.querySelector('#radiusGroup .slider-label span:first-child').textContent = '半径';
+  }
+
+  // Reset folder drag offset when entering folder mode
+  if (isFolder) {
+    S.photoOffX = 0; S.photoOffY = 0;
+    S.folderDragging = false;
+  }
+
+  // Restore saved params for new mode
+  const p = modeParams[m];
+  S.strength = p.strength;
+  S.radius = p.radius;
+  S.cx = p.cx;
+  S.cy = p.cy;
+  document.getElementById('strengthSlider').value = Math.round(S.strength * 100);
+  document.getElementById('strengthVal').textContent = Math.round(S.strength * 100) + '%';
+  document.getElementById('radiusSlider').value = Math.round(S.radius * 100);
+  document.getElementById('radiusVal').textContent = Math.round(S.radius * 100) + '%';
+
+  // Reset peel state after all mode params are restored so the cover is closed by default.
+  if (isPeel) {
+    resetPeelCover();
+    requestAnimationFrame(resetPeelCover);
+  }
+}
+
+function switchFrame(fc) {
+  S.frameColor = fc;
+  document.querySelectorAll('.frame-btn').forEach(b => b.classList.toggle('active', +b.dataset.fc === fc));
+}
+
+function resetParams() {
+  S.cx = 0.5; S.cy = 0.5;
+  const defaults = { 0: { s: 0.3, r: 0.5 }, 1: { s: 0.8, r: 0.42 }, 2: { s: 0.5, r: 0.35 }, 3: { s: 0.6, r: 0.3 }, 4: { s: 0.5, r: 0.3 }, 5: { s: 0.6, r: 0.12 }, 6: { s: 0.6, r: 0.3 } };
+  S.strength = defaults[S.mode].s;
+  S.radius = defaults[S.mode].r;
+  if (S.mode === 4) {
+    resetPeelCover();
+  }
+  if (S.mode === 5) {
+    S.photoOffX = 0; S.photoOffY = 0;
+  }
+  document.getElementById('strengthSlider').value = Math.round(S.strength * 100);
+  document.getElementById('strengthVal').textContent = Math.round(S.strength * 100) + '%';
+  document.getElementById('radiusSlider').value = Math.round(S.radius * 100);
+  document.getElementById('radiusVal').textContent = Math.round(S.radius * 100) + '%';
+  showToast('已重置');
+}
+
+// ============================================================
+//  Image Picker
+// ============================================================
+let imagePickerOpening = false;
+
+function pickImage(type) {
+  if (imagePickerOpening) return;
+  imagePickerOpening = true;
+  window.setTimeout(() => { imagePickerOpening = false; }, 600);
+
+  const inp = document.getElementById('fileInput');
+  if (type === 'camera') {
+    inp.setAttribute('capture', 'environment');
+  } else {
+    inp.removeAttribute('capture');
+  }
+  inp.click();
+}
+
+document.getElementById('fileInput').addEventListener('change', function() {
+  imagePickerOpening = false;
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      loadImageToGL(img);
+      // Hide empty state placeholder
+      const empty = document.getElementById('canvasEmpty');
+      if (empty) empty.classList.add('hidden');
+      resetParams();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  this.value = '';
+});
+
+// backToWelcome removed — single page app
+
+// ============================================================
+//  Export
+// ============================================================
+function saveImage() {
+  if (!S.imgLoaded) return;
+  // Render at current state (preserveDrawingBuffer is on)
+  canvas.toBlob(blob => {
+    if (!blob) { showToast('导出失败'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'fisheye_' + Date.now() + '.png';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('已保存', true);
+  }, 'image/png');
+}
+
+function shareImage() {
+  if (!S.imgLoaded) return;
+  canvas.toBlob(async blob => {
+    if (!blob) return;
+    if (navigator.share) {
+      const file = new File([blob], 'fisheye.png', { type: 'image/png' });
+      try {
+        await navigator.share({ files: [file], title: 'FishEye Cam' });
+      } catch(e) { /* user cancelled */ }
+    } else {
+      saveImage(); // fallback
+    }
+  }, 'image/png');
+}
+
+// ============================================================
+//  Toast
+// ============================================================
+function showToast(msg, success) {
+  const t = document.getElementById('toast');
+  t.innerHTML = (success ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>' : '') + msg;
+  t.classList.add('show');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ============================================================
+//  Init
+// ============================================================
+function initFolderColors() {
+  const row = document.getElementById('folderColorBtns');
+  FOLDER_COLORS.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'frame-btn' + (i === 0 ? ' active' : '');
+    btn.dataset.fci = i;
+    btn.style.padding = '0';
+    btn.style.width = '34px';
+    btn.style.height = '34px';
+    btn.style.borderRadius = '50%';
+    btn.style.minWidth = '34px';
+    const swatch = document.createElement('span');
+    swatch.style.display = 'block';
+    swatch.style.width = '20px';
+    swatch.style.height = '20px';
+    swatch.style.borderRadius = '50%';
+    swatch.style.background = `rgb(${Math.round(c.body[0]*255)},${Math.round(c.body[1]*255)},${Math.round(c.body[2]*255)})`;
+    btn.appendChild(swatch);
+    btn.onclick = () => {
+      S.folderColorIdx = i;
+      row.querySelectorAll('.frame-btn').forEach((b,j) => b.classList.toggle('active', j === i));
+    };
+    row.appendChild(btn);
+  });
+}
+
+// ============================================================
+//  Mode Wheel — Film Strip with 3D cylinder perspective
+// ============================================================
+function initModeWheel() {
+  const wrap = document.getElementById('modeWheelWrap');
+  const wheel = document.getElementById('modeWheel');
+  const items = [...wheel.querySelectorAll('.mode-item')];
+  const modes = items.map(it => Number(it.dataset.mode));
+  const ITEM_W = 80; // logical width per item
+  const COUNT = items.length;
+
+  // Set item widths
+  items.forEach(it => { it.style.width = ITEM_W + 'px'; });
+
+  // Padding so first/last can center
+  let wrapW = wrap.clientWidth;
+  const padSide = Math.floor(wrapW / 2 - ITEM_W / 2);
+  wheel.style.paddingLeft = padSide + 'px';
+  wheel.style.paddingRight = padSide + 'px';
+
+  function indexForMode(mode) {
+    const idx = modes.indexOf(mode);
+    return idx >= 0 ? idx : 0;
+  }
+
+  let currentIdx = indexForMode(S.mode);
+  let offset = -currentIdx * ITEM_W;
+  let startX = 0, startOffset = 0, isDragging = false;
+  let velocity = 0, lastX = 0, lastTime = 0;
+  let animId = null;
+
+  function applyTransform() {
+    wheel.style.transform = `translateX(${offset}px)`;
+    // 3D cylinder perspective per item
+    const centerPos = -offset / ITEM_W; // fractional index at center
+    items.forEach((it, i) => {
+      const dist = i - centerPos; // signed distance from center
+      const absDist = Math.abs(dist);
+
+      // Rotate around Y axis — items curve away like a film reel
+      const rotY = dist * 18; // degrees per item distance
+      const clampedRotY = Math.max(-65, Math.min(65, rotY));
+
+      // Depth: push farther items back
+      const tz = -absDist * 8;
+
+      // Scale: slight shrink for distant items
+      const sc = Math.max(0.7, 1.0 - absDist * 0.06);
+
+      // Opacity: fade out distant items
+      const alpha = Math.max(0.12, 1.0 - absDist * 0.35);
+
+      it.style.transform = `rotateY(${clampedRotY}deg) translateZ(${tz}px) scale(${sc})`;
+      it.style.opacity = alpha;
+      it.classList.toggle('active', Math.round(centerPos) === i);
+    });
+  }
+
+  function snapTo(idx, animated) {
+    idx = Math.max(0, Math.min(COUNT - 1, idx));
+    const target = -idx * ITEM_W;
+    if (!animated) {
+      offset = target;
+      applyTransform();
+      if (idx !== currentIdx) { currentIdx = idx; switchMode(modes[idx]); }
+      return;
+    }
+    cancelAnimationFrame(animId);
+    function tick() {
+      const diff = target - offset;
+      if (Math.abs(diff) < 0.5) {
+        offset = target;
+        applyTransform();
+        if (idx !== currentIdx) { currentIdx = idx; switchMode(modes[idx]); }
+        return;
+      }
+      offset += diff * 0.18;
+      applyTransform();
+      animId = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function onStart(x) {
+    cancelAnimationFrame(animId);
+    isDragging = true;
+    startX = x;
+    startOffset = offset;
+    lastX = x;
+    lastTime = Date.now();
+    velocity = 0;
+  }
+
+  function onMove(x) {
+    if (!isDragging) return;
+    const dx = x - startX;
+    offset = startOffset + dx;
+    // Clamp with rubber band
+    const minOff = -(COUNT - 1) * ITEM_W;
+    if (offset > 0) offset *= 0.3;
+    else if (offset < minOff) offset = minOff + (offset - minOff) * 0.3;
+    applyTransform();
+
+    const now = Date.now();
+    const dt = now - lastTime;
+    if (dt > 0) {
+      velocity = (x - lastX) / dt * 16;
+    }
+    lastX = x;
+    lastTime = now;
+  }
+
+  function onEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    let predicted = offset + velocity * 5;
+    let idx = Math.round(-predicted / ITEM_W);
+    idx = Math.max(0, Math.min(COUNT - 1, idx));
+    snapTo(idx, true);
+  }
+
+  // Touch events
+  wrap.addEventListener('touchstart', e => {
+    e.stopPropagation();
+    if (e.touches.length === 1) onStart(e.touches[0].clientX);
+  }, { passive: true });
+  wrap.addEventListener('touchmove', e => {
+    e.stopPropagation();
+    if (e.touches.length === 1) onMove(e.touches[0].clientX);
+  }, { passive: true });
+  wrap.addEventListener('touchend', e => { e.stopPropagation(); onEnd(); }, { passive: true });
+
+  // Mouse events
+  wrap.addEventListener('mousedown', e => { e.stopPropagation(); onStart(e.clientX); });
+  window.addEventListener('mousemove', e => { if (isDragging) onMove(e.clientX); });
+  window.addEventListener('mouseup', () => { if (isDragging) onEnd(); });
+
+  // Click to select
+  items.forEach((it, i) => {
+    it.addEventListener('click', e => {
+      e.stopPropagation();
+      if (Math.abs(velocity) < 0.5) snapTo(i, true);
+    });
+  });
+
+  // Handle resize
+  window.addEventListener('resize', () => {
+    wrapW = wrap.clientWidth;
+    const ps = Math.floor(wrapW / 2 - ITEM_W / 2);
+    wheel.style.paddingLeft = ps + 'px';
+    wheel.style.paddingRight = ps + 'px';
+    snapTo(currentIdx, false);
+  });
+
+  // Initial position
+  snapTo(currentIdx, false);
+
+  // Expose for programmatic use
+  window._modeWheelSnapTo = snapTo;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initGL();
+  resizeCanvas();
+  setupTouch();
+  initFolderColors();
+  initModeWheel();
+  render();
+});
+window.addEventListener('resize', () => { if (gl) resizeCanvas(); });
+</script>
+</body>
+</html>

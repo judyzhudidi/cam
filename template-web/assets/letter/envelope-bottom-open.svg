@@ -1,0 +1,4 @@
+<svg viewBox="0 0 3000 1120" width="3000" height="1120" xmlns="http://www.w3.org/2000/svg" style="width: 3000px; height: 1120px; overflow: clip">
+  <defs><filter id="_qgkkqw0" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB"><feDropShadow in="SourceGraphic" dx="0" dy="4" stdDeviation="2" flood-color="#000" flood-opacity="0.25" result="s0"/></filter><linearGradient id="_qgkkqw1" gradientUnits="objectBoundingBox" x1="0.5" y1="0" x2="0.51" y2="0.74"><stop offset="0" stop-color="#b1b0b0"/><stop offset="1" stop-color="#c5c5c5"/></linearGradient></defs>
+  <path transform="matrix(1 0 0 1 -497 0)" filter="url(#_qgkkqw0)" d="M2000.000 0.000L3732.051 1125.000L267.949 1125.000Z" fill-rule="nonzero" fill="url(#_qgkkqw1)" />
+</svg>

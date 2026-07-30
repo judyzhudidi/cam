@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>OpenGift MVP</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="phone-shell" id="app">
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+
+    <header class="top-bar">
+      <button class="top-icon" id="backBtn" aria-label="Back">
+        <span></span>
+      </button>
+      <div>
+        <p class="eyebrow" id="stepEyebrow">Step 1</p>
+        <h1 id="pageTitle">Choose an opening</h1>
+      </div>
+      <button class="top-pill" id="worksBtn">Works</button>
+    </header>
+
+    <section class="stage" id="stage">
+      <div class="preview-card" id="previewCard">
+        <div class="template-scene" id="scene"></div>
+      </div>
+      <p class="scene-hint" id="sceneHint">Pick a template, then fill it with photo and text</p>
+    </section>
+
+    <section class="floating-panel" id="panel">
+      <div class="panel-grabber"></div>
+      <div class="select-step" data-step-panel="select">
+        <div class="template-actions" id="templateActions"></div>
+        <button class="primary-button" id="useTemplateBtn">Use this template</button>
+      </div>
+
+      <div class="edit-step hidden" data-step-panel="edit">
+        <div class="slot-grid">
+          <button class="slot-card" id="photoSlot">
+            <span class="sticker-icon image-icon"></span>
+            <strong>Photo</strong>
+            <small id="photoSlotText">Upload / Camera</small>
+          </button>
+          <button class="slot-card" id="textSlot">
+            <span class="sticker-icon text-icon"></span>
+            <strong>Text</strong>
+            <small>Title and message</small>
+          </button>
+          <button class="slot-card" id="stickerSlot">
+            <span class="sticker-icon cutout-icon"></span>
+            <strong>Sticker</strong>
+            <small id="stickerSlotText">Decorations</small>
+          </button>
+        </div>
+        <button class="primary-button" id="generateBtn">Generate preview</button>
+      </div>
+
+      <div class="share-step hidden" data-step-panel="share">
+        <div class="share-actions">
+          <button class="share-dot"><span class="download-icon"></span><em>Save image</em></button>
+          <button class="share-dot"><span class="link-icon"></span><em>Copy link</em></button>
+          <button class="share-dot"><span class="cover-icon"></span><em>Make cover</em></button>
+        </div>
+        <button class="primary-button" id="restartBtn">Make another</button>
+      </div>
+    </section>
+
+    <div class="sheet-backdrop hidden" id="sheetBackdrop"></div>
+    <section class="bottom-sheet hidden" id="contentSheet">
+      <div class="panel-grabber"></div>
+      <div class="sheet-content" id="sheetContent"></div>
+    </section>
+
+    <input id="imageInput" type="file" accept="image/*" />
+  </main>
+
+  <script src="./vendor/sticker-forge.iife.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
