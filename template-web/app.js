@@ -33,6 +33,7 @@ const state = {
   imageUrl: '',
   stickerUrl: '',
   activeUploadType: 'photo',
+  photoEditorOpen: false,
   opened: false,
   envelopePeel: 0,
   envelopeDragging: false,
@@ -572,19 +573,22 @@ function openImagePicker(type = 'photo', source = 'library') {
 }
 
 function openPhotoEditor(dataUrl) {
-  // Repurpose the bottom sheet as the photo editor canvas
+  // Mark that we're in editor mode so backdrop click is suppressed
+  state.photoEditorOpen = true;
+
   els.stage.classList.add('blurred');
   els.sheetBackdrop.classList.remove('hidden');
   els.contentSheet.classList.remove('hidden');
   els.contentSheet.classList.add('pe-sheet');
 
   PhotoEditor.open(els.sheetContent, dataUrl, result => {
+    state.photoEditorOpen = false;
     els.contentSheet.classList.remove('pe-sheet');
     if (result !== null) {
       state.imageUrl = result;
-      render();
     }
     closeSheet();
+    if (result !== null) render();
   });
 }
 
@@ -641,6 +645,9 @@ function closeSheet() {
   els.stage.classList.remove('blurred');
   els.sheetBackdrop.classList.add('hidden');
   els.contentSheet.classList.add('hidden');
+  els.contentSheet.classList.remove('pe-sheet');
+  state.photoEditorOpen = false;
+  PhotoEditor.destroy();
 }
 
 function escapeHTML(value) {
@@ -668,7 +675,11 @@ els.backBtn.addEventListener('click', () => {
 els.photoSlot.addEventListener('click', () => openSheet('photo'));
 els.textSlot.addEventListener('click', () => openSheet('text'));
 els.stickerSlot.addEventListener('click', () => openSheet('sticker'));
-els.sheetBackdrop.addEventListener('click', closeSheet);
+els.sheetBackdrop.addEventListener('click', () => {
+  // Don't close if the photo editor is open (it has its own Cancel/Done)
+  if (state.photoEditorOpen) return;
+  closeSheet();
+});
 
 els.stage.addEventListener('click', () => {
   if (state.templateId === 'envelope' || state.templateId === 'pack') return;
