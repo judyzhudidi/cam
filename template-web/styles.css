@@ -1451,25 +1451,23 @@ button {
 
 .fridge-forge-sticker {
   position: absolute;
-  left: 154px;
-  top: 132px;
-  width: 68px;
-  height: 68px;
+  left: 130px;
+  top: 108px;
+  width: 116px;
+  height: 116px;
   z-index: 5;
   opacity: 0;
   pointer-events: auto;
-  transform: rotate(-8deg) scale(1);
-  transition: opacity .22s ease;
+  background: none;
+  border: none;
+  overflow: visible;
+  animation: fridgeStickerFadeIn .46s ease-out both;
 }
 
 .fridge-forge-sticker canvas {
   width: 100% !important;
   height: 100% !important;
   display: block;
-}
-
-.fridge-forge-sticker {
-  animation: fridgeStickerFadeIn .46s ease-out both;
 }
 
 .photo-sticker:empty,

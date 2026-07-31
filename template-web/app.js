@@ -225,7 +225,7 @@ async function mountStickerForgeEffects() {
   try {
     const instance = await api.createSticker(host, {
       source: { type: 'image', src: state.stickerUrl },
-      outline: { width: 20, color: '#ffffff' },
+      outline: { width: 10, color: '#ffffff' },
       edge: { width: 3, strength: 0.7 },
       shadow: { opacity: 0.24, blur: 22, distance: 12, color: '#1c1c18' },
       material: { type: 'holographic', intensity: 0.32, scale: 1.2, holographicGrain: 0.18 },
@@ -233,7 +233,6 @@ async function mountStickerForgeEffects() {
       peel: { release: 'reset', grabWidth: 28, radius: 0.12 },
       sound: { enabled: false },
       quality: 'medium',
-      tilt: -13,
     });
     if (!host.isConnected) { instance.destroy?.(); return; }
     stickerForgeInstances.push(instance);
