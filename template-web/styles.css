@@ -1193,6 +1193,16 @@ button {
   transform: translate(-50%, -50%);
 }
 
+/* Loading state: pulse the fridge while frames are being fetched */
+.scene-fridge.fridge-loading .fridge-frame-asset {
+  animation: fridgeLoadingPulse .9s ease-in-out infinite;
+}
+
+@keyframes fridgeLoadingPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .55; }
+}
+
 .fridge-frame-asset {
   position: absolute;
   inset: 0;

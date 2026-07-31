@@ -290,7 +290,15 @@ function resetPackTear() {
 async function animateFridgeTo(open) {
   if (state.fridgeAnimating) return;
   state.fridgeAnimating = true;
-  await fridgeFramesReady;
+
+  // If frames aren't ready yet, show a loading indicator and wait
+  if (!state.fridgeFramesReady) {
+    const scene = els.scene.querySelector('.scene-fridge');
+    if (scene) scene.classList.add('fridge-loading');
+    await fridgeFramesReady;
+    if (scene) scene.classList.remove('fridge-loading');
+  }
+
   const from = state.fridgeFrame;
   const to = open ? 9 : 1;
   const step = from <= to ? 1 : -1;
