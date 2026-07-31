@@ -218,36 +218,29 @@ async function mountStickerForgeEffects() {
   if (state.templateId !== 'fridge') return;
   if (state.step === 'select' || state.opened || state.fridgeFrame !== 1 || !state.stickerUrl || !state.fridgeStickerReady) return;
   const api = window.StickerForge;
+  if (!api?.createSticker) return;
   const host = els.scene.querySelector('.fridge-forge-sticker');
   if (!host) return;
 
-  // Try Sticker Forge WebGL first
-  if (api?.createSticker) {
-    try {
-      const instance = await api.createSticker(host, {
-        source: { type: 'image', src: state.stickerUrl },
-        outline: { width: 20, color: '#ffffff' },
-        edge: { width: 3, strength: 0.7 },
-        shadow: { opacity: 0.24, blur: 22, distance: 12, color: '#1c1c18' },
-        material: { type: 'holographic', intensity: 0.32, scale: 1.2, holographicGrain: 0.18 },
-        lighting: { intensity: 0.9, ambient: 0.48, softness: 0.72, direction: { x: -0.35, y: 0.45, z: 0.82 } },
-        peel: { release: 'reset', grabWidth: 28, radius: 0.12 },
-        sound: { enabled: false },
-        quality: 'medium',
-        tilt: -13,
-      });
-      if (!host.isConnected) { instance.destroy?.(); return; }
-      stickerForgeInstances.push(instance);
-      instance.reappear?.();
-      return; // success — no CSS fallback needed
-    } catch (error) {
-      console.warn('Sticker Forge mount failed, falling back to CSS sticker', error);
-    }
+  try {
+    const instance = await api.createSticker(host, {
+      source: { type: 'image', src: state.stickerUrl },
+      outline: { width: 20, color: '#ffffff' },
+      edge: { width: 3, strength: 0.7 },
+      shadow: { opacity: 0.24, blur: 22, distance: 12, color: '#1c1c18' },
+      material: { type: 'holographic', intensity: 0.32, scale: 1.2, holographicGrain: 0.18 },
+      lighting: { intensity: 0.9, ambient: 0.48, softness: 0.72, direction: { x: -0.35, y: 0.45, z: 0.82 } },
+      peel: { release: 'reset', grabWidth: 28, radius: 0.12 },
+      sound: { enabled: false },
+      quality: 'medium',
+      tilt: -13,
+    });
+    if (!host.isConnected) { instance.destroy?.(); return; }
+    stickerForgeInstances.push(instance);
+    instance.reappear?.();
+  } catch (error) {
+    console.warn('Sticker Forge mount failed', error);
   }
-
-  // CSS fallback: inject img directly into the host element
-  host.innerHTML = `<img src="${state.stickerUrl}" alt="Decorative sticker" style="width:100%;height:100%;object-fit:contain;" />`;
-  host.classList.add('fridge-door-sticker-fallback');
 }
 
 function renderTemplateActions() {
