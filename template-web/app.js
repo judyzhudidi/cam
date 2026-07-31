@@ -32,7 +32,6 @@ const state = {
   message: 'A small note to gently brighten the day ahead.',
   imageUrl: '',
   stickerUrl: '',
-  activeUploadType: 'photo',
   photoEditorOpen: false,
   opened: false,
   envelopePeel: 0,
@@ -80,6 +79,7 @@ const els = {
   generateBtn: document.getElementById('generateBtn'),
   restartBtn: document.getElementById('restartBtn'),
   imageInput: document.getElementById('imageInput'),
+  stickerInput: document.getElementById('stickerInput'),
   photoSlot: document.getElementById('photoSlot'),
   textSlot: document.getElementById('textSlot'),
   stickerSlot: document.getElementById('stickerSlot'),
@@ -562,14 +562,22 @@ function bindPackTear() {
   pack.addEventListener('pointercancel', handleRelease);
 }
 
-function openImagePicker(type = 'photo', source = 'library') {
-  state.activeUploadType = type;
+function openImagePicker(source = 'library') {
   if (source === 'camera') {
     els.imageInput.setAttribute('capture', 'environment');
   } else {
     els.imageInput.removeAttribute('capture');
   }
   els.imageInput.click();
+}
+
+function openStickerPicker(source = 'library') {
+  if (source === 'camera') {
+    els.stickerInput.setAttribute('capture', 'environment');
+  } else {
+    els.stickerInput.removeAttribute('capture');
+  }
+  els.stickerInput.click();
 }
 
 function openPhotoEditor(dataUrl) {
@@ -604,8 +612,8 @@ function openSheet(type) {
       <button class="secondary-button" id="cameraNow">Take photo</button>
       <p style="margin:12px 4px 0;color:rgba(0,0,0,.5);font-size:13px;font-weight:700;line-height:1.45;">The photo will be placed inside the selected opening template.</p>
     `;
-    document.getElementById('uploadNow').addEventListener('click', () => openImagePicker('photo', 'library'));
-    document.getElementById('cameraNow').addEventListener('click', () => openImagePicker('photo', 'camera'));
+    document.getElementById('uploadNow').addEventListener('click', () => openImagePicker('library'));
+    document.getElementById('cameraNow').addEventListener('click', () => openImagePicker('camera'));
   }
 
   if (type === 'text') {
@@ -636,8 +644,8 @@ function openSheet(type) {
       <button class="secondary-button" id="cameraStickerNow">Take photo</button>
       <p style="margin:12px 4px 0;color:rgba(0,0,0,.5);font-size:13px;font-weight:700;line-height:1.45;">Add a decorative sticker that can appear in the opening animation.</p>
     `;
-    document.getElementById('uploadStickerNow').addEventListener('click', () => openImagePicker('sticker', 'library'));
-    document.getElementById('cameraStickerNow').addEventListener('click', () => openImagePicker('sticker', 'camera'));
+    document.getElementById('uploadStickerNow').addEventListener('click', () => openStickerPicker('library'));
+    document.getElementById('cameraStickerNow').addEventListener('click', () => openStickerPicker('camera'));
   }
 }
 
@@ -697,16 +705,22 @@ els.imageInput.addEventListener('change', event => {
   const reader = new FileReader();
   reader.onload = () => {
     const dataUrl = String(reader.result || '');
-    if (state.activeUploadType === 'sticker') {
-      state.stickerUrl = dataUrl;
-      state.fridgeStickerReady = false;
-      closeSheet();
-      render();
-    } else {
-      // Photo: close the picker sheet, then open photo editor
-      closeSheet();
-      openPhotoEditor(dataUrl);
-    }
+    closeSheet();
+    openPhotoEditor(dataUrl);
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+});
+
+els.stickerInput.addEventListener('change', event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.stickerUrl = String(reader.result || '');
+    state.fridgeStickerReady = false;
+    closeSheet();
+    render();
   };
   reader.readAsDataURL(file);
   event.target.value = '';
