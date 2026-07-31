@@ -707,12 +707,12 @@ button {
 
 .letter-card-svg {
   position: absolute;
-  left: 50px;
-  top: 52px;
-  width: 168px;
-  height: 142px;
+  left: 28px;
+  top: 36px;
+  width: 212px;
+  height: 178px;
   z-index: 1;
-  padding: 14px 16px;
+  padding: 18px 20px;
   background: #f7f7f5;
   box-shadow: 0 10px 20px rgba(36,34,28,.10);
   transform: translateY(calc(74px - var(--peel, 0) * 96px)) scale(.98);
@@ -722,10 +722,10 @@ button {
 }
 
 .envelope-photo-content {
-  width: 54px;
-  height: 42px;
-  margin: 0 0 8px auto;
-  border-radius: 8px;
+  width: 80px;
+  height: 62px;
+  margin: 0 0 10px auto;
+  border-radius: 10px;
   overflow: hidden;
   background: rgba(17,17,17,.06);
   box-shadow: inset 0 0 0 1px rgba(17,17,17,.04);
@@ -1028,18 +1028,17 @@ button {
 
 .pack-sticker {
   position: absolute;
-  width: 62px;
-  height: 62px;
-  border-radius: 16px;
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
   background: #fff;
-  border: 5px solid #fff;
+  border: 6px solid #fff;
   box-shadow:
     0 13px 28px rgba(0,0,0,.16),
     inset 0 1px 1px rgba(255,255,255,.9);
   overflow: hidden;
   display: grid;
   place-items: center;
-  /* Visible through the translucent bag, then fully visible near the mouth. */
   opacity: clamp(.34, calc(.34 + var(--tear, 0) * .54), .88);
   transform: translateY(var(--pop, 0px)) translateX(var(--pop-x, 0px)) rotate(var(--rot)) scale(var(--scale, .82));
   transition: opacity .42s ease, box-shadow .34s ease;
@@ -1097,15 +1096,15 @@ button {
 }
 
 .pack-text-card span {
-  font-size: 10px;
-  max-width: 52px;
+  font-size: 13px;
+  max-width: 72px;
 }
 
 .pack-text-card {
   position: absolute;
-  width: 76px;
-  min-height: 56px;
-  padding: 10px 11px;
+  width: 100px;
+  min-height: 72px;
+  padding: 12px 14px;
   border-radius: 0;
   display: grid;
   place-items: center;
@@ -1140,9 +1139,9 @@ button {
   object-fit: cover;
 }
 
-.pack-sticker.one { left: 6px; top: 74px; --pop: calc(var(--tear, 0) * -64px); --rot: -8deg; }
-.pack-sticker.two { right: 0; top: 102px; --pop: calc(var(--tear, 0) * -54px); --rot: 7deg; background: #f7f3df; }
-.pack-text-card.three { left: 70px; bottom: 48px; --pop: calc(var(--tear, 0) * -46px); --rot: 3deg; }
+.pack-sticker.one { left: 4px; top: 56px; --pop: calc(var(--tear, 0) * -64px); --rot: -8deg; }
+.pack-sticker.two { right: -4px; top: 90px; --pop: calc(var(--tear, 0) * -54px); --rot: 7deg; background: #f7f3df; }
+.pack-text-card.three { left: 60px; bottom: 40px; --pop: calc(var(--tear, 0) * -46px); --rot: 3deg; }
 
 .is-open .fridge-door { --open: -64deg; }
 .is-open .pack-template::after { opacity: .76; transform: scaleX(1) translateY(-8px); }
@@ -1314,14 +1313,15 @@ button {
   transform: none;
 }
 
+/* ── Fridge interior content ────────────────────────── */
 .fridge-photo-content {
   position: absolute;
-  left: 132px;
-  top: 170px;
-  width: 62px;
-  height: 52px;
+  left: 108px;
+  top: 148px;
+  width: 96px;
+  height: 80px;
   z-index: 2;
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
   background: rgba(255,255,255,.82);
   opacity: 0;
@@ -1345,26 +1345,26 @@ button {
 
 .fridge-text-card {
   position: absolute;
-  left: 116px;
-  top: 230px;
-  width: 98px;
+  left: 92px;
+  top: 240px;
+  width: 138px;
   z-index: 2;
-  padding: 8px 9px;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
   opacity: 0;
   transform: translateY(10px) scale(.92);
   transition: transform .62s .34s var(--spring), opacity .3s .3s ease;
 }
 
 .fridge-text-card strong {
-  margin-bottom: 3px;
-  font-size: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
 }
 
 .fridge-text-card p {
   margin: 0;
-  font-size: 5px;
-  line-height: 1.25;
+  font-size: 8px;
+  line-height: 1.35;
 }
 
 .scene-fridge.is-open .fridge-text-card {
