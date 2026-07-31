@@ -571,6 +571,23 @@ function openImagePicker(type = 'photo', source = 'library') {
   els.imageInput.click();
 }
 
+function openPhotoEditor(dataUrl) {
+  // Repurpose the bottom sheet as the photo editor canvas
+  els.stage.classList.add('blurred');
+  els.sheetBackdrop.classList.remove('hidden');
+  els.contentSheet.classList.remove('hidden');
+  els.contentSheet.classList.add('pe-sheet');
+
+  PhotoEditor.open(els.sheetContent, dataUrl, result => {
+    els.contentSheet.classList.remove('pe-sheet');
+    if (result !== null) {
+      state.imageUrl = result;
+      render();
+    }
+    closeSheet();
+  });
+}
+
 function openSheet(type) {
   els.stage.classList.add('blurred');
   els.sheetBackdrop.classList.remove('hidden');
@@ -668,14 +685,17 @@ els.imageInput.addEventListener('change', event => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
+    const dataUrl = String(reader.result || '');
     if (state.activeUploadType === 'sticker') {
-      state.stickerUrl = String(reader.result || '');
+      state.stickerUrl = dataUrl;
       state.fridgeStickerReady = false;
+      closeSheet();
+      render();
     } else {
-      state.imageUrl = String(reader.result || '');
+      // Photo: close the picker sheet, then open photo editor
+      closeSheet();
+      openPhotoEditor(dataUrl);
     }
-    closeSheet();
-    render();
   };
   reader.readAsDataURL(file);
   event.target.value = '';

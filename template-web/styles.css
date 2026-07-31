@@ -1514,6 +1514,199 @@ button {
   box-shadow: none;
 }
 
+/* ─── Photo Editor Sheet ──────────────────────────────────────────────── */
+
+/* When in editor mode, expand the bottom sheet to fill the shell */
+.bottom-sheet.pe-sheet {
+  top: 0;
+  border-radius: 0;
+  height: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.bottom-sheet.pe-sheet .panel-grabber { display: none; }
+
+.bottom-sheet.pe-sheet .sheet-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Editor layout */
+.pe-wrap {
+  flex: 1;
+  position: relative;
+  background: #111;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.pe-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.pe-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,.38);
+  pointer-events: none;
+  transition: opacity .3s;
+  opacity: 0;
+}
+
+/* Effect picker row */
+.pe-effects {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px 0;
+  justify-content: center;
+  background: #fff;
+}
+
+.pe-effect-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  border: 1.5px solid rgba(0,0,0,.10);
+  border-radius: 12px;
+  background: #f5f4f2;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(0,0,0,.45);
+  transition: border-color .15s, background .15s, color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pe-effect-btn.active {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+/* Effect icons */
+.pe-effect-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.08);
+}
+
+.pe-effect-btn.active .pe-effect-icon {
+  background: rgba(255,255,255,.15);
+}
+
+.pe-icon-none {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='11' fill='none' stroke='rgba(0,0,0,.3)' stroke-width='1.5'/%3E%3Cline x1='7' y1='7' x2='21' y2='21' stroke='rgba(0,0,0,.3)' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: cover;
+}
+
+.pe-effect-btn.active .pe-icon-none {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='11' fill='none' stroke='rgba(255,255,255,.5)' stroke-width='1.5'/%3E%3Cline x1='7' y1='7' x2='21' y2='21' stroke='rgba(255,255,255,.5)' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.pe-icon-magnifier {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='13' cy='13' r='7' fill='none' stroke='rgba(0,0,0,.3)' stroke-width='1.5'/%3E%3Ccircle cx='13' cy='13' r='3' fill='rgba(0,0,0,.15)'/%3E%3Cline x1='18' y1='18' x2='23' y2='23' stroke='rgba(0,0,0,.3)' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: cover;
+}
+
+.pe-effect-btn.active .pe-icon-magnifier {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='13' cy='13' r='7' fill='none' stroke='rgba(255,255,255,.5)' stroke-width='1.5'/%3E%3Ccircle cx='13' cy='13' r='3' fill='rgba(255,255,255,.25)'/%3E%3Cline x1='18' y1='18' x2='23' y2='23' stroke='rgba(255,255,255,.5)' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.pe-icon-fisheye {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='10' fill='none' stroke='rgba(0,0,0,.3)' stroke-width='1.5'/%3E%3Cellipse cx='14' cy='14' rx='5' ry='10' fill='none' stroke='rgba(0,0,0,.2)' stroke-width='1'/%3E%3Cline x1='4' y1='14' x2='24' y2='14' stroke='rgba(0,0,0,.15)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: cover;
+}
+
+.pe-effect-btn.active .pe-icon-fisheye {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='10' fill='none' stroke='rgba(255,255,255,.5)' stroke-width='1.5'/%3E%3Cellipse cx='14' cy='14' rx='5' ry='10' fill='none' stroke='rgba(255,255,255,.3)' stroke-width='1'/%3E%3Cline x1='4' y1='14' x2='24' y2='14' stroke='rgba(255,255,255,.2)' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* Sliders */
+.pe-sliders {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 0;
+  background: #fff;
+}
+
+.pe-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pe-slider-row label {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(0,0,0,.4);
+  width: 58px;
+  flex-shrink: 0;
+}
+
+.pe-slider-row input[type=range] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  background: rgba(0,0,0,.12);
+  border-radius: 2px;
+  outline: none;
+}
+
+.pe-slider-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #111;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+
+.pe-slider-row span {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: rgba(0,0,0,.35);
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Done / Cancel */
+.pe-actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px 20px;
+  background: #fff;
+}
+
+.pe-actions .secondary-button,
+.pe-actions .primary-button {
+  flex: 1;
+  margin: 0;
+}
+
 @media (min-width: 680px) {
   body { padding: 24px; }
   .phone-shell { border-radius: 42px; }
