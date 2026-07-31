@@ -1468,12 +1468,8 @@ button {
   display: block;
 }
 
-.scene-fridge.forge-ready .fridge-forge-sticker {
+.fridge-forge-sticker {
   animation: fridgeStickerFadeIn .46s ease-out both;
-}
-
-.scene-fridge.forge-ready .forge-fallback {
-  opacity: 0;
 }
 
 .photo-sticker:empty,
